@@ -11,6 +11,8 @@ import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
 import 'estadisticas_screen.dart';
 
+import '../widgets/indexed_stack_resume.dart';
+
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -31,6 +33,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void initState() {
     super.initState();
     _load();
+    activeTabNotifier.addListener(_onTabChange);
+  }
+
+  void _onTabChange() {
+    if (activeTabNotifier.value == 0) _load();
+  }
+
+  @override
+  void dispose() {
+    activeTabNotifier.removeListener(_onTabChange);
+    super.dispose();
   }
 
   Future<void> _load() async {

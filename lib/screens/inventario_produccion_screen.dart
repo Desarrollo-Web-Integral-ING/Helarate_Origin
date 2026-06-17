@@ -7,6 +7,8 @@ import '../models/producto_produccion.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 
+import '../widgets/indexed_stack_resume.dart';
+
 class InventarioProduccionScreen extends StatefulWidget {
   const InventarioProduccionScreen({super.key});
 
@@ -31,6 +33,17 @@ class _InventarioProduccionScreenState
   void initState() {
     super.initState();
     _load();
+    activeTabNotifier.addListener(_onTabChange);
+  }
+
+  void _onTabChange() {
+    if (activeTabNotifier.value == 1) _load();
+  }
+
+  @override
+  void dispose() {
+    activeTabNotifier.removeListener(_onTabChange);
+    super.dispose();
   }
 
   Future<void> _load() async {

@@ -6,6 +6,8 @@ import '../models/venta.dart';
 import '../services/storage_service.dart';
 import '../theme/app_theme.dart';
 
+import '../widgets/indexed_stack_resume.dart';
+
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
 
@@ -26,6 +28,17 @@ class _VentasScreenState extends State<VentasScreen> {
   void initState() {
     super.initState();
     _load();
+    activeTabNotifier.addListener(_onTabChange);
+  }
+
+  void _onTabChange() {
+    if (activeTabNotifier.value == 3) _load();
+  }
+
+  @override
+  void dispose() {
+    activeTabNotifier.removeListener(_onTabChange);
+    super.dispose();
   }
 
   Future<void> _load() async {

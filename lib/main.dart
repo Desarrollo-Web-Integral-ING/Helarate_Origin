@@ -9,6 +9,8 @@ import 'screens/ventas_screen.dart';
 import 'screens/estadisticas_screen.dart';
 import 'services/storage_service.dart';
 
+import 'widgets/indexed_stack_resume.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('es_MX', null);
@@ -46,13 +48,33 @@ class MainNavigation extends StatefulWidget {
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
-  final _screens = const [
-    DashboardScreen(),
-    InventarioProduccionScreen(),
-    InventarioVentaScreen(),
-    VentasScreen(),
-    EstadisticasScreen(),
+  final _keys = [
+    GlobalKey(),
+    GlobalKey(),
+    GlobalKey(),
+    GlobalKey(),
+    GlobalKey(),
   ];
+
+  late final List<Widget> _screens;
+
+  @override
+  void initState() {
+    super.initState();
+    _screens = [
+      DashboardScreen(key: _keys[0]),
+      InventarioProduccionScreen(key: _keys[1]),
+      InventarioVentaScreen(key: _keys[2]),
+      VentasScreen(key: _keys[3]),
+      EstadisticasScreen(key: _keys[4]),
+    ];
+  }
+
+  void _onTabTap(int index) {
+    if (_currentIndex == index) return;
+    setState(() => _currentIndex = index);
+    activeTabNotifier.value = index;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +121,7 @@ class _MainNavigationState extends State<MainNavigation> {
       int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final isActive = _currentIndex == index;
     return GestureDetector(
-      onTap: () => setState(() => _currentIndex = index),
+      onTap: () => _onTabTap(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
