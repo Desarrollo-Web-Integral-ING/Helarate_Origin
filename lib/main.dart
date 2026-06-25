@@ -3,14 +3,23 @@ import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
+import 'domain/repositories/insumo_repository.dart';
+import 'domain/repositories/venta_repository.dart';
+import 'presentation/blocs/inventario/inventario_bloc.dart';
+import 'presentation/blocs/inventario/inventario_event.dart';
+import 'presentation/blocs/venta/venta_bloc.dart';
+import 'presentation/blocs/venta/venta_event.dart';
+import 'presentation/blocs/dashboard/dashboard_bloc.dart';
+import 'presentation/blocs/dashboard/dashboard_event.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
 import 'presentation/screens/ventas_screen.dart';
 import 'presentation/screens/estadisticas_screen.dart';
-import 'data/services/storage_service.dart';
+
 
 import 'core/widgets/indexed_stack_resume.dart';
 
@@ -28,7 +37,7 @@ void main() async {
   setupServiceLocator();
 
   await initializeDateFormatting('es_MX', null);
-  await StorageService().inicializarDatosDefecto();
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -43,11 +52,31 @@ class NeveroApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Mi Nevería',
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.theme,
-      home: const MainNavigation(),
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider<InventarioBloc>(
+          create: (context) => InventarioBloc(
+            insumoRepository: getIt<InsumoRepository>(),
+          )..add(LoadInventario()),
+        ),
+        BlocProvider<VentaBloc>(
+          create: (context) => VentaBloc(
+            ventaRepository: getIt<VentaRepository>(),
+          )..add(LoadVentasEvent()),
+        ),
+        BlocProvider<DashboardBloc>(
+          create: (context) => DashboardBloc(
+            insumoRepository: getIt<InsumoRepository>(),
+            ventaRepository: getIt<VentaRepository>(),
+          )..add(LoadDashboardEvent()),
+        ),
+      ],
+      child: MaterialApp(
+        title: 'Mi Nevería',
+        debugShowCheckedModeBanner: false,
+        theme: AppTheme.theme,
+        home: const MainNavigation(),
+      ),
     );
   }
 }

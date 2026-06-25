@@ -1,11 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../../domain/models/producto_venta.dart';
-import '../../domain/models/venta.dart';
-import '../../data/services/storage_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/models/insumo.dart';
+import '../../domain/models/venta_model.dart';
+import '../blocs/venta/venta_bloc.dart';
+import '../blocs/venta/venta_event.dart';
+import '../blocs/venta/venta_state.dart';
+import '../blocs/inventario/inventario_bloc.dart';
+import '../blocs/inventario/inventario_event.dart';
+import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
-
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class VentasScreen extends StatefulWidget {
@@ -16,10 +21,9 @@ class VentasScreen extends StatefulWidget {
 }
 
 class _VentasScreenState extends State<VentasScreen> {
-  final _storage = StorageService();
   final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
-  List<Venta> _ventas = [];
-  List<ProductoVenta> _productos = [];
+  List<VentaModel> _ventas = [];
+  List<Insumo> _productos = [];
   String _filtroFecha = 'Hoy';
 
   static const _filtros = ['Hoy', 'Semana', 'Mes', 'Todo'];
@@ -27,12 +31,13 @@ class _VentasScreenState extends State<VentasScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
     activeTabNotifier.addListener(_onTabChange);
   }
 
   void _onTabChange() {
-    if (activeTabNotifier.value == 3) _load();
+    if (activeTabNotifier.value == 3) {
+      _dispatchLoadVentas();
+    }
   }
 
   @override
@@ -41,65 +46,91 @@ class _VentasScreenState extends State<VentasScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final v = await _storage.getVentas();
-    final p = await _storage.getProductosVenta();
-    setState(() {
-      _ventas = v..sort((a, b) => b.fecha.compareTo(a.fecha));
-      _productos = p;
-    });
+  void _dispatchLoadVentas() {
+    final now = DateTime.now();
+    switch (_filtroFecha) {
+      case 'Hoy':
+        context.read<VentaBloc>().add(LoadVentasEvent(date: now));
+        break;
+      case 'Semana':
+        context.read<VentaBloc>().add(LoadVentasEvent(
+          startDate: now.subtract(const Duration(days: 7)),
+          endDate: now,
+        ));
+        break;
+      case 'Mes':
+        context.read<VentaBloc>().add(LoadVentasEvent(
+          startDate: DateTime(now.year, now.month, 1),
+          endDate: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
+        ));
+        break;
+      case 'Todo':
+        context.read<VentaBloc>().add(LoadVentasEvent(
+          startDate: DateTime(2020, 1, 1),
+          endDate: DateTime(2030, 12, 31),
+        ));
+        break;
+    }
   }
 
-  List<Venta> get _ventasFiltradas {
-    final now = DateTime.now();
-    return _ventas.where((v) {
-      switch (_filtroFecha) {
-        case 'Hoy':
-          return v.fecha.year == now.year &&
-              v.fecha.month == now.month &&
-              v.fecha.day == now.day;
-        case 'Semana':
-          return v.fecha.isAfter(now.subtract(const Duration(days: 7)));
-        case 'Mes':
-          return v.fecha.year == now.year && v.fecha.month == now.month;
-        default:
-          return true;
-      }
-    }).toList();
-  }
+  List<VentaModel> get _ventasFiltradas => _ventas;
 
   double get _totalFiltrado =>
-      _ventasFiltradas.fold(0.0, (sum, v) => sum + v.total);
+      _ventasFiltradas.fold(0.0, (sum, v) => sum + v.totalIngresos);
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Ventas'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add_rounded),
-            onPressed: _productos.isEmpty ? null : () => _showRegistrarVenta(),
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildResumen(),
-          _buildFiltros(),
-          Expanded(child: _buildLista()),
-        ],
-      ),
-      floatingActionButton: _productos.isEmpty
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => _showRegistrarVenta(),
-              backgroundColor: AppTheme.primary,
-              icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('Registrar venta',
-                  style: TextStyle(
-                      color: Colors.white, fontWeight: FontWeight.w600)),
-            ),
+    return BlocBuilder<InventarioBloc, InventarioState>(
+      builder: (context, invState) {
+        if (invState is InventarioLoaded) {
+          _productos = invState.insumos.where((i) => i.tipo == TipoInsumo.productoVenta).toList();
+        }
+        return BlocBuilder<VentaBloc, VentaState>(
+          builder: (context, state) {
+            if (state is VentasLoaded) {
+              _ventas = state.ventas;
+            }
+            return Scaffold(
+              appBar: AppBar(
+                title: const Text('Ventas'),
+                actions: [
+                  IconButton(
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: _productos.isEmpty ? null : () => _showRegistrarVenta(),
+                  ),
+                ],
+              ),
+              body: _buildBody(state),
+              floatingActionButton: _productos.isEmpty
+                  ? null
+                  : FloatingActionButton.extended(
+                      onPressed: () => _showRegistrarVenta(),
+                      backgroundColor: AppTheme.primary,
+                      icon: const Icon(Icons.add, color: Colors.white),
+                      label: const Text('Registrar venta',
+                          style: TextStyle(
+                              color: Colors.white, fontWeight: FontWeight.w600)),
+                    ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildBody(VentaState state) {
+    if (state is VentaLoading || state is VentaInitial) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (state is VentaError) {
+      return Center(child: Text('Error: ${state.message}'));
+    }
+    return Column(
+      children: [
+        _buildResumen(),
+        _buildFiltros(),
+        Expanded(child: _buildLista()),
+      ],
     );
   }
 
@@ -167,7 +198,10 @@ class _VentasScreenState extends State<VentasScreen> {
           final f = _filtros[i];
           final selected = f == _filtroFecha;
           return GestureDetector(
-            onTap: () => setState(() => _filtroFecha = f),
+            onTap: () {
+              setState(() => _filtroFecha = f);
+              _dispatchLoadVentas();
+            },
             child: Container(
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
@@ -224,7 +258,12 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  Widget _buildVentaCard(Venta v) {
+  Widget _buildVentaCard(VentaModel v) {
+    final detail = v.detalles.isNotEmpty ? v.detalles.first : null;
+    final productoNombre = detail?.insumoNombre ?? 'Producto';
+    final cantidad = detail?.cantidad.toInt() ?? 0;
+    final precioUnitario = detail?.precioVentaUnitario ?? 0.0;
+
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
@@ -250,7 +289,7 @@ class _VentasScreenState extends State<VentasScreen> {
           child: const Icon(Icons.icecream_rounded, color: Colors.white, size: 22),
         ),
         title: Text(
-          v.productoNombre,
+          productoNombre,
           style: const TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 15,
@@ -260,7 +299,7 @@ class _VentasScreenState extends State<VentasScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              '${v.cantidad} pzs · ${_fmt.format(v.precioUnitario)} c/u',
+              '$cantidad pzs · ${_fmt.format(precioUnitario)} c/u',
               style: const TextStyle(
                   fontSize: 12, color: AppTheme.textSecondary),
             ),
@@ -269,19 +308,13 @@ class _VentasScreenState extends State<VentasScreen> {
               style: const TextStyle(
                   fontSize: 11, color: AppTheme.textSecondary),
             ),
-            if (v.nota != null && v.nota!.isNotEmpty)
-              Text(v.nota!,
-                  style: const TextStyle(
-                      fontSize: 11,
-                      color: AppTheme.textSecondary,
-                      fontStyle: FontStyle.italic)),
           ],
         ),
         trailing: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
-              _fmt.format(v.total),
+              _fmt.format(v.totalIngresos),
               style: const TextStyle(
                   fontWeight: FontWeight.w700,
                   color: AppTheme.primary,
@@ -299,9 +332,8 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   void _showRegistrarVenta() {
-    ProductoVenta? productoSeleccionado;
+    Insumo? productoSeleccionado;
     final cantidadCtrl = TextEditingController(text: '1');
-    final notaCtrl = TextEditingController();
 
     showModalBottomSheet(
       context: context,
@@ -342,13 +374,13 @@ class _VentasScreenState extends State<VentasScreen> {
                     color: AppTheme.textPrimary),
               ),
               const SizedBox(height: 16),
-              DropdownButtonFormField<ProductoVenta>(
+              DropdownButtonFormField<Insumo>(
                 decoration: const InputDecoration(labelText: 'Producto'),
                 items: _productos
                     .map((p) => DropdownMenuItem(
                           value: p,
                           child: Text(
-                            '${p.nombre} - ${p.sabor} (${p.stockActual} disp.)',
+                            '${p.nombre}${p.sabor != null && p.sabor!.isNotEmpty ? " - " + p.sabor! : ""} (${p.stockActual.toInt()} disp.)',
                             overflow: TextOverflow.ellipsis,
                           ),
                         ))
@@ -371,7 +403,7 @@ class _VentasScreenState extends State<VentasScreen> {
                           style: TextStyle(
                               color: AppTheme.textSecondary, fontSize: 13)),
                       Text(
-                        _fmt.format(productoSeleccionado!.precio),
+                        _fmt.format(productoSeleccionado!.precioVenta),
                         style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             color: AppTheme.primary,
@@ -386,20 +418,13 @@ class _VentasScreenState extends State<VentasScreen> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Cantidad'),
               ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: notaCtrl,
-                decoration: const InputDecoration(
-                    labelText: 'Nota (opcional)',
-                    hintText: 'Ej: cliente especial, descuento...'),
-              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () async {
+                  onPressed: () {
                     if (productoSeleccionado == null) return;
-                    final cantidad = int.tryParse(cantidadCtrl.text) ?? 1;
+                    final cantidad = double.tryParse(cantidadCtrl.text) ?? 1.0;
                     if (cantidad <= 0) return;
                     if (cantidad > productoSeleccionado!.stockActual) {
                       ScaffoldMessenger.of(context).showSnackBar(
@@ -410,23 +435,54 @@ class _VentasScreenState extends State<VentasScreen> {
                       );
                       return;
                     }
-                    final venta = Venta(
-                      id: const Uuid().v4(),
-                      productoId: productoSeleccionado!.id,
-                      productoNombre:
-                          '${productoSeleccionado!.nombre} - ${productoSeleccionado!.sabor}',
-                      cantidad: cantidad,
-                      precioUnitario: productoSeleccionado!.precio,
+                    final ventaId = const Uuid().v4();
+                    final detailId = const Uuid().v4();
+                    final totalIngresos = cantidad * productoSeleccionado!.precioVenta;
+                    final totalCostos = cantidad * productoSeleccionado!.costoUnitario;
+                    final gananciaNeta = totalIngresos - totalCostos;
+
+                    final venta = VentaModel(
+                      id: ventaId,
                       fecha: DateTime.now(),
-                      nota: notaCtrl.text.trim().isEmpty
-                          ? null
-                          : notaCtrl.text.trim(),
+                      totalIngresos: totalIngresos,
+                      totalCostos: totalCostos,
+                      gananciaNeta: gananciaNeta,
+                      detalles: [
+                        DetalleVentaModel(
+                          id: detailId,
+                          ventaId: ventaId,
+                          insumoId: productoSeleccionado!.id,
+                          insumoNombre: '${productoSeleccionado!.nombre}${productoSeleccionado!.sabor != null && productoSeleccionado!.sabor!.isNotEmpty ? " - " + productoSeleccionado!.sabor! : ""}',
+                          cantidad: cantidad,
+                          precioVentaUnitario: productoSeleccionado!.precioVenta,
+                          costoUnitario: productoSeleccionado!.costoUnitario,
+                        )
+                      ],
                     );
-                    await _storage.addVenta(venta);
-                    productoSeleccionado!.stockActual -= cantidad;
-                    await _storage.updateProductoVenta(productoSeleccionado!);
+
+                    context.read<VentaBloc>().add(RegistrarVentaEvent(venta));
+
+                    // Decrementar stock localmente y enviar evento de actualización de insumo
+                    final nuevoStock = productoSeleccionado!.stockActual - cantidad;
+                    final prodActualizado = Insumo(
+                      id: productoSeleccionado!.id,
+                      nombre: productoSeleccionado!.nombre,
+                      sabor: productoSeleccionado!.sabor,
+                      tamano: productoSeleccionado!.tamano,
+                      precioVenta: productoSeleccionado!.precioVenta,
+                      stockActual: nuevoStock,
+                      stockMinimo: productoSeleccionado!.stockMinimo,
+                      categoria: productoSeleccionado!.categoria,
+                      imagenPath: productoSeleccionado!.imagenPath,
+                      tipo: productoSeleccionado!.tipo,
+                      costoUnitario: productoSeleccionado!.costoUnitario,
+                      unidad: productoSeleccionado!.unidad,
+                      userId: productoSeleccionado!.userId,
+                      updatedAt: DateTime.now(),
+                    );
+                    context.read<InventarioBloc>().add(UpdateInsumoEvent(prodActualizado));
+
                     if (mounted) Navigator.pop(context);
-                    _load();
                   },
                   child: const Text('Registrar venta'),
                 ),
@@ -438,7 +494,7 @@ class _VentasScreenState extends State<VentasScreen> {
     );
   }
 
-  void _confirmDelete(Venta v) {
+  void _confirmDelete(VentaModel v) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -451,10 +507,9 @@ class _VentasScreenState extends State<VentasScreen> {
               child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await _storage.deleteVenta(v.id);
+            onPressed: () {
+              context.read<VentaBloc>().add(DeleteVentaEvent(v.id));
               if (mounted) Navigator.pop(context);
-              _load();
             },
             child: const Text('Eliminar'),
           ),

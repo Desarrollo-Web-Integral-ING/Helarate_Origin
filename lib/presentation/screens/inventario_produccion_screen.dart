@@ -3,8 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../../domain/models/producto_produccion.dart';
-import '../../data/services/storage_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/models/insumo.dart';
+import '../blocs/inventario/inventario_bloc.dart';
+import '../blocs/inventario/inventario_event.dart';
+import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
 
 import '../../core/widgets/indexed_stack_resume.dart';
@@ -19,9 +22,8 @@ class InventarioProduccionScreen extends StatefulWidget {
 
 class _InventarioProduccionScreenState
     extends State<InventarioProduccionScreen> {
-  final _storage = StorageService();
   final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
-  List<ProductoProduccion> _items = [];
+  List<Insumo> _items = [];
   String _busqueda = '';
 
   static const _categorias = [
@@ -32,12 +34,13 @@ class _InventarioProduccionScreenState
   @override
   void initState() {
     super.initState();
-    _load();
     activeTabNotifier.addListener(_onTabChange);
   }
 
   void _onTabChange() {
-    if (activeTabNotifier.value == 1) _load();
+    if (activeTabNotifier.value == 1) {
+      context.read<InventarioBloc>().add(LoadInventario());
+    }
   }
 
   @override
@@ -46,35 +49,36 @@ class _InventarioProduccionScreenState
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final items = await _storage.getProductosProduccion();
-    setState(() => _items = items);
-  }
-
-  List<ProductoProduccion> get _filtrados => _busqueda.isEmpty
+  List<Insumo> get _filtrados => _busqueda.isEmpty
       ? _items
       : _items.where((p) =>
           p.nombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
           p.categoria.toLowerCase().contains(_busqueda.toLowerCase())).toList();
 
-  double get _valorTotal => _items.fold(0.0, (s, p) => s + p.valorTotal);
-  int get _agotadosCount => _items.where((p) => p.cantidad == 0).length;
+  double get _valorTotal => _items.fold(0.0, (s, p) => s + (p.stockActual * p.costoUnitario));
+  int get _agotadosCount => _items.where((p) => p.stockActual == 0).length;
   int get _stockBajoCount => _items.where((p) => p.stockBajo).length;
 
-  Future<void> _ajustarCantidad(ProductoProduccion p, double delta) async {
-    final nueva = (p.cantidad + delta).clamp(0.0, double.infinity);
-    final actualizado = ProductoProduccion(
-      id: p.id, nombre: p.nombre, unidad: p.unidad,
-      cantidad: nueva, cantidadMinima: p.cantidadMinima,
-      precioUnitario: p.precioUnitario, categoria: p.categoria,
-      imagenPath: p.imagenPath, ultimaActualizacion: DateTime.now(),
+  void _ajustarCantidad(Insumo p, double delta) {
+    final nueva = (p.stockActual + delta).clamp(0.0, double.infinity);
+    final actualizado = Insumo(
+      id: p.id,
+      nombre: p.nombre,
+      unidad: p.unidad,
+      stockActual: nueva,
+      stockMinimo: p.stockMinimo,
+      costoUnitario: p.costoUnitario,
+      categoria: p.categoria,
+      tipo: p.tipo,
+      precioVenta: p.precioVenta,
+      userId: p.userId,
+      updatedAt: DateTime.now(),
     );
-    await _storage.updateProductoProduccion(actualizado);
-    _load();
+    context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
 
   Future<String?> _pickImage() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );
@@ -93,12 +97,27 @@ class _InventarioProduccionScreenState
           ),
         ],
       ),
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildSearchBar(),
-          Expanded(child: _buildList()),
-        ],
+      body: BlocBuilder<InventarioBloc, InventarioState>(
+        builder: (context, state) {
+          if (state is InventarioLoading || state is InventarioInitial) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state is InventarioError) {
+            return Center(child: Text('Error: ${state.message}'));
+          }
+          if (state is InventarioLoaded) {
+            _items = state.insumos.where((i) => i.tipo == TipoInsumo.materiaPrima).toList();
+
+            return Column(
+              children: [
+                _buildHeader(),
+                _buildSearchBar(),
+                Expanded(child: _buildList()),
+              ],
+            );
+          }
+          return const SizedBox();
+        },
       ),
     );
   }
@@ -179,8 +198,8 @@ class _InventarioProduccionScreenState
     );
   }
 
-  Widget _buildCard(ProductoProduccion p) {
-    final agotado = p.cantidad == 0;
+  Widget _buildCard(Insumo p) {
+    final agotado = p.stockActual == 0;
     final Color borderColor = agotado
         ? const Color(0xFFE53935)
         : p.stockBajo ? const Color(0xFFFFB74D) : Colors.transparent;
@@ -212,8 +231,8 @@ class _InventarioProduccionScreenState
                 style: const TextStyle(fontWeight: FontWeight.w600,
                     fontSize: 14, color: AppTheme.textPrimary)),
             subtitle: Text(
-              '${p.categoria} · ${_fmt.format(p.precioUnitario)}/${p.unidad}'
-              '${p.cantidadMinima > 0 ? ' · Mín: ${p.cantidadMinima}' : ''}',
+              '${p.categoria} · ${_fmt.format(p.costoUnitario)}/${p.unidad}'
+              '${p.stockMinimo > 0 ? ' · Mín: ${p.stockMinimo}' : ''}',
               style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
             ),
             trailing: SizedBox(
@@ -222,7 +241,7 @@ class _InventarioProduccionScreenState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(_fmt.format(p.valorTotal),
+                  Text(_fmt.format(p.stockActual * p.costoUnitario),
                       style: const TextStyle(fontWeight: FontWeight.w700,
                           color: AppTheme.primary, fontSize: 13),
                       overflow: TextOverflow.ellipsis),
@@ -242,7 +261,7 @@ class _InventarioProduccionScreenState
                 Expanded(
                   child: Center(
                     child: Text(
-                      '${p.cantidad % 1 == 0 ? p.cantidad.toInt() : p.cantidad} ${p.unidad}',
+                      '${p.stockActual % 1 == 0 ? p.stockActual.toInt() : p.stockActual} ${p.unidad}',
                       style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 15,
                         color: agotado ? const Color(0xFFE53935)
@@ -314,7 +333,7 @@ class _InventarioProduccionScreenState
     );
   }
 
-  void _showAjusteDialog(ProductoProduccion p) {
+  void _showAjusteDialog(Insumo p) {
     final ctrl = TextEditingController();
     showDialog(
       context: context,
@@ -330,18 +349,24 @@ class _InventarioProduccionScreenState
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
-            onPressed: () async {
+            onPressed: () {
               final val = double.tryParse(ctrl.text);
               if (val == null) return;
-              final actualizado = ProductoProduccion(
-                id: p.id, nombre: p.nombre, unidad: p.unidad,
-                cantidad: val, cantidadMinima: p.cantidadMinima,
-                precioUnitario: p.precioUnitario, categoria: p.categoria,
-                imagenPath: p.imagenPath, ultimaActualizacion: DateTime.now(),
+              final actualizado = Insumo(
+                id: p.id,
+                nombre: p.nombre,
+                unidad: p.unidad,
+                stockActual: val,
+                stockMinimo: p.stockMinimo,
+                costoUnitario: p.costoUnitario,
+                categoria: p.categoria,
+                tipo: p.tipo,
+                precioVenta: p.precioVenta,
+                userId: p.userId,
+                updatedAt: DateTime.now(),
               );
-              await _storage.updateProductoProduccion(actualizado);
+              context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
               if (mounted) Navigator.pop(context);
-              _load();
             },
             child: const Text('Guardar'),
           ),
@@ -350,16 +375,16 @@ class _InventarioProduccionScreenState
     );
   }
 
-  void _showForm({ProductoProduccion? producto}) {
+  void _showForm({Insumo? producto}) {
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
     final unidadCtrl = TextEditingController(text: producto?.unidad ?? '');
     final cantidadCtrl = TextEditingController(
-        text: producto?.cantidad == 0 ? '' : producto?.cantidad.toString() ?? '');
+        text: producto?.stockActual == 0 ? '' : producto?.stockActual.toString() ?? '');
     final cantMinCtrl = TextEditingController(
-        text: producto?.cantidadMinima == 0 ? '' : producto?.cantidadMinima.toString() ?? '');
+        text: producto?.stockMinimo == 0 ? '' : producto?.stockMinimo.toString() ?? '');
     final precioCtrl = TextEditingController(
-        text: producto?.precioUnitario == 0 ? '' : producto?.precioUnitario.toString() ?? '');
+        text: producto?.costoUnitario == 0 ? '' : producto?.costoUnitario.toString() ?? '');
     String categoria = _categorias.contains(producto?.categoria)
         ? producto!.categoria : _categorias.first;
     String? imagenPath = producto?.imagenPath;
@@ -391,7 +416,6 @@ class _InventarioProduccionScreenState
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 16),
-                // Imagen
                 GestureDetector(
                   onTap: () async {
                     final path = await _pickImage();
@@ -465,26 +489,28 @@ class _InventarioProduccionScreenState
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () async {
+                    onPressed: () {
                       if (nombreCtrl.text.isEmpty) return;
-                      final p = ProductoProduccion(
+                      final p = Insumo(
                         id: producto?.id ?? const Uuid().v4(),
                         nombre: nombreCtrl.text.trim(),
                         unidad: unidadCtrl.text.trim().isEmpty ? 'pzs' : unidadCtrl.text.trim(),
-                        cantidad: double.tryParse(cantidadCtrl.text) ?? 0,
-                        cantidadMinima: double.tryParse(cantMinCtrl.text) ?? 0,
-                        precioUnitario: double.tryParse(precioCtrl.text) ?? 0,
+                        stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
+                        stockMinimo: double.tryParse(cantMinCtrl.text) ?? 0,
+                        costoUnitario: double.tryParse(precioCtrl.text) ?? 0,
                         categoria: categoria,
+                        tipo: TipoInsumo.materiaPrima,
+                        precioVenta: 0,
+                        userId: producto?.userId,
+                        updatedAt: DateTime.now(),
                         imagenPath: imagenPath,
-                        ultimaActualizacion: DateTime.now(),
                       );
                       if (isEdit) {
-                        await _storage.updateProductoProduccion(p);
+                        context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
                       } else {
-                        await _storage.addProductoProduccion(p);
+                        context.read<InventarioBloc>().add(AddInsumoEvent(p));
                       }
                       if (mounted) Navigator.pop(context);
-                      _load();
                     },
                     child: Text(isEdit ? 'Guardar cambios' : 'Agregar insumo'),
                   ),
@@ -497,7 +523,7 @@ class _InventarioProduccionScreenState
     );
   }
 
-  void _confirmDelete(ProductoProduccion p) {
+  void _confirmDelete(Insumo p) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -508,10 +534,9 @@ class _InventarioProduccionScreenState
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await _storage.deleteProductoProduccion(p.id);
+            onPressed: () {
+              context.read<InventarioBloc>().add(DeleteInsumoEvent(p.id));
               if (mounted) Navigator.pop(context);
-              _load();
             },
             child: const Text('Eliminar'),
           ),

@@ -3,8 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../../domain/models/producto_venta.dart';
-import '../../data/services/storage_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/models/insumo.dart';
+import '../blocs/inventario/inventario_bloc.dart';
+import '../blocs/inventario/inventario_event.dart';
+import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
 
 import '../../core/widgets/indexed_stack_resume.dart';
@@ -17,9 +20,8 @@ class InventarioVentaScreen extends StatefulWidget {
 }
 
 class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
-  final _storage = StorageService();
   final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
-  List<ProductoVenta> _items = [];
+  List<Insumo> _items = [];
   String _busqueda = '';
   String _filtroCategoria = 'Todos';
 
@@ -30,12 +32,13 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   @override
   void initState() {
     super.initState();
-    _load();
     activeTabNotifier.addListener(_onTabChange);
   }
 
   void _onTabChange() {
-    if (activeTabNotifier.value == 2) _load();
+    if (activeTabNotifier.value == 2) {
+      context.read<InventarioBloc>().add(LoadInventario());
+    }
   }
 
   @override
@@ -44,12 +47,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final items = await _storage.getProductosVenta();
-    setState(() => _items = items);
-  }
-
-  List<ProductoVenta> get _filtrados {
+  List<Insumo> get _filtrados {
     var list = _items;
     if (_filtroCategoria != 'Todos') {
       list = list.where((p) => p.categoria == _filtroCategoria).toList();
@@ -57,25 +55,34 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     if (_busqueda.isNotEmpty) {
       list = list.where((p) =>
           p.nombre.toLowerCase().contains(_busqueda.toLowerCase()) ||
-          p.sabor.toLowerCase().contains(_busqueda.toLowerCase())).toList();
+          (p.sabor != null && p.sabor!.toLowerCase().contains(_busqueda.toLowerCase()))).toList();
     }
     return list;
   }
 
-  Future<void> _ajustarStock(ProductoVenta p, int delta) async {
-    final nuevo = (p.stockActual + delta).clamp(0, 99999);
-    final actualizado = ProductoVenta(
-      id: p.id, nombre: p.nombre, sabor: p.sabor, tamano: p.tamano,
-      precio: p.precio, stockActual: nuevo, stockMinimo: p.stockMinimo,
-      categoria: p.categoria, imagenPath: p.imagenPath,
-      ultimaActualizacion: DateTime.now(),
+  void _ajustarStock(Insumo p, int delta) {
+    final nuevo = (p.stockActual + delta).clamp(0.0, 99999.0);
+    final actualizado = Insumo(
+      id: p.id,
+      nombre: p.nombre,
+      sabor: p.sabor,
+      tamano: p.tamano,
+      precioVenta: p.precioVenta,
+      stockActual: nuevo,
+      stockMinimo: p.stockMinimo,
+      categoria: p.categoria,
+      imagenPath: p.imagenPath,
+      tipo: p.tipo,
+      costoUnitario: p.costoUnitario,
+      unidad: p.unidad,
+      userId: p.userId,
+      updatedAt: DateTime.now(),
     );
-    await _storage.updateProductoVenta(actualizado);
-    _load();
+    context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
 
   Future<String?> _pickImage() async {
-    final result = await FilePicker.pickFiles(
+    final result = await FilePicker.platform.pickFiles(
       type: FileType.image, allowMultiple: false,
     );
     return result?.files.single.path;
@@ -90,13 +97,28 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
           IconButton(icon: const Icon(Icons.add_rounded), onPressed: () => _showForm()),
         ],
       ),
-      body: Column(
-        children: [
-          _buildHeader(),
-          _buildSearchBar(),
-          _buildCategoryFilter(),
-          Expanded(child: _buildList()),
-        ],
+      body: BlocBuilder<InventarioBloc, InventarioState>(
+        builder: (context, state) {
+          if (state is InventarioLoading || state is InventarioInitial) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state is InventarioError) {
+            return Center(child: Text('Error: ${state.message}'));
+          }
+          if (state is InventarioLoaded) {
+            _items = state.insumos.where((i) => i.tipo == TipoInsumo.productoVenta).toList();
+
+            return Column(
+              children: [
+                _buildHeader(),
+                _buildSearchBar(),
+                _buildCategoryFilter(),
+                Expanded(child: _buildList()),
+              ],
+            );
+          }
+          return const SizedBox();
+        },
       ),
     );
   }
@@ -206,7 +228,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  Widget _buildCard(ProductoVenta p) {
+  Widget _buildCard(Insumo p) {
     final agotado = p.stockActual == 0;
     final Color borderColor = agotado ? const Color(0xFFE53935)
         : p.stockBajo ? const Color(0xFFFFB74D) : Colors.transparent;
@@ -230,9 +252,11 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
             title: Text(p.nombre, style: const TextStyle(
                 fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.textPrimary)),
             subtitle: Text(
-              [p.sabor, p.categoria,
-                if (p.categoria == 'Vaso' && p.tamano.isNotEmpty) p.tamano]
-                  .where((s) => s.isNotEmpty).join(' · '),
+              [
+                if (p.sabor != null && p.sabor!.isNotEmpty) p.sabor!,
+                p.categoria,
+                if (p.categoria == 'Vaso' && p.tamano != null && p.tamano!.isNotEmpty) p.tamano!,
+              ].join(' · '),
               style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
             ),
             trailing: SizedBox(
@@ -241,7 +265,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text(_fmt.format(p.precio),
+                  Text(_fmt.format(p.precioVenta),
                       style: const TextStyle(fontWeight: FontWeight.w700,
                           color: AppTheme.primary, fontSize: 13),
                       overflow: TextOverflow.ellipsis),
@@ -261,7 +285,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 Expanded(
                   child: Center(
                     child: Text(
-                      '${p.stockActual} ${p.categoria == 'Litro' || p.categoria == 'Cazuela' ? 'L' : 'pzs'}',
+                      '${p.stockActual.toInt()} ${p.categoria == 'Litro' || p.categoria == 'Cazuela' ? 'L' : 'pzs'}',
                       style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 15,
                         color: agotado ? const Color(0xFFE53935)
@@ -302,7 +326,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  Widget _stockChip(ProductoVenta p) {
+  Widget _stockChip(Insumo p) {
     final agotado = p.stockActual == 0;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -338,7 +362,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  void _showAjusteDialog(ProductoVenta p) {
+  void _showAjusteDialog(Insumo p) {
     final ctrl = TextEditingController();
     showDialog(
       context: context,
@@ -354,18 +378,27 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
-            onPressed: () async {
-              final val = int.tryParse(ctrl.text);
+            onPressed: () {
+              final val = double.tryParse(ctrl.text);
               if (val == null) return;
-              final actualizado = ProductoVenta(
-                id: p.id, nombre: p.nombre, sabor: p.sabor, tamano: p.tamano,
-                precio: p.precio, stockActual: val, stockMinimo: p.stockMinimo,
-                categoria: p.categoria, imagenPath: p.imagenPath,
-                ultimaActualizacion: DateTime.now(),
+              final actualizado = Insumo(
+                id: p.id,
+                nombre: p.nombre,
+                sabor: p.sabor,
+                tamano: p.tamano,
+                precioVenta: p.precioVenta,
+                stockActual: val,
+                stockMinimo: p.stockMinimo,
+                categoria: p.categoria,
+                imagenPath: p.imagenPath,
+                tipo: p.tipo,
+                costoUnitario: p.costoUnitario,
+                unidad: p.unidad,
+                userId: p.userId,
+                updatedAt: DateTime.now(),
               );
-              await _storage.updateProductoVenta(actualizado);
+              context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
               if (mounted) Navigator.pop(context);
-              _load();
             },
             child: const Text('Guardar'),
           ),
@@ -374,16 +407,16 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  void _showForm({ProductoVenta? producto}) {
+  void _showForm({Insumo? producto}) {
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
     final saborCtrl = TextEditingController(text: producto?.sabor ?? '');
     final precioCtrl = TextEditingController(
-        text: producto?.precio == 0 ? '' : producto?.precio.toString() ?? '');
+        text: producto?.precioVenta == 0 ? '' : producto?.precioVenta.toString() ?? '');
     final stockCtrl = TextEditingController(
         text: producto?.stockActual == 0 ? '' : producto?.stockActual.toString() ?? '');
     final stockMinCtrl = TextEditingController(text: producto?.stockMinimo.toString() ?? '1');
-    String tamano = _tamanos.contains(producto?.tamano) ? producto!.tamano : _tamanos.first;
+    String tamano = _tamanos.contains(producto?.tamano) ? producto!.tamano! : _tamanos.first;
     String categoria = _tipos.contains(producto?.categoria) ? producto!.categoria : _tipos.first;
     String? imagenPath = producto?.imagenPath;
 
@@ -410,7 +443,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                     decoration: BoxDecoration(color: Colors.grey[300],
                         borderRadius: BorderRadius.circular(2)))),
                 const SizedBox(height: 16),
-                Text(isEdit ? 'Editar producto' : 'Nuevo producto',
+                Text(isEdit ? 'Editar nieve' : 'Nueva nieve',
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
                         color: AppTheme.textPrimary)),
                 const SizedBox(height: 16),
@@ -496,27 +529,30 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () async {
+                    onPressed: () {
                       if (nombreCtrl.text.isEmpty) return;
-                      final p = ProductoVenta(
+                      final p = Insumo(
                         id: producto?.id ?? const Uuid().v4(),
                         nombre: nombreCtrl.text.trim(),
-                        sabor: saborCtrl.text.trim(),
-                        tamano: categoria == 'Vaso' ? tamano : '',
-                        precio: double.tryParse(precioCtrl.text) ?? 0,
-                        stockActual: int.tryParse(stockCtrl.text) ?? 0,
-                        stockMinimo: int.tryParse(stockMinCtrl.text) ?? 1,
+                        sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
+                        tamano: categoria == 'Vaso' ? tamano : null,
+                        precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
+                        stockActual: double.tryParse(stockCtrl.text) ?? 0.0,
+                        stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
                         categoria: categoria,
                         imagenPath: imagenPath,
-                        ultimaActualizacion: DateTime.now(),
+                        tipo: TipoInsumo.productoVenta,
+                        costoUnitario: 0.0,
+                        unidad: 'pzs',
+                        userId: producto?.userId,
+                        updatedAt: DateTime.now(),
                       );
                       if (isEdit) {
-                        await _storage.updateProductoVenta(p);
+                        context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
                       } else {
-                        await _storage.addProductoVenta(p);
+                        context.read<InventarioBloc>().add(AddInsumoEvent(p));
                       }
                       if (mounted) Navigator.pop(context);
-                      _load();
                     },
                     child: Text(isEdit ? 'Guardar cambios' : 'Agregar'),
                   ),
@@ -529,7 +565,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  void _confirmDelete(ProductoVenta p) {
+  void _confirmDelete(Insumo p) {
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -540,10 +576,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            onPressed: () async {
-              await _storage.deleteProductoVenta(p.id);
+            onPressed: () {
+              context.read<InventarioBloc>().add(DeleteInsumoEvent(p.id));
               if (mounted) Navigator.pop(context);
-              _load();
             },
             child: const Text('Eliminar'),
           ),

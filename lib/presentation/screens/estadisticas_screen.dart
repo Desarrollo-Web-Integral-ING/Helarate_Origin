@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import '../../domain/models/venta.dart';
-import '../../data/services/storage_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../domain/models/venta_model.dart';
+import '../blocs/venta/venta_bloc.dart';
+import '../blocs/venta/venta_event.dart';
+import '../blocs/venta/venta_state.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
-
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class EstadisticasScreen extends StatefulWidget {
@@ -16,20 +18,19 @@ class EstadisticasScreen extends StatefulWidget {
 }
 
 class _EstadisticasScreenState extends State<EstadisticasScreen> {
-  final _storage = StorageService();
   final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
-  List<Venta> _ventas = [];
-  bool _loading = true;
+  List<VentaModel> _ventas = [];
 
   @override
   void initState() {
     super.initState();
-    _load();
     activeTabNotifier.addListener(_onTabChange);
   }
 
   void _onTabChange() {
-    if (activeTabNotifier.value == 4) _load();
+    if (activeTabNotifier.value == 4) {
+      _load();
+    }
   }
 
   @override
@@ -38,12 +39,11 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    final v = await _storage.getVentas();
-    setState(() {
-      _ventas = v;
-      _loading = false;
-    });
+  void _load() {
+    context.read<VentaBloc>().add(LoadVentasEvent(
+      startDate: DateTime.now().subtract(const Duration(days: 30)),
+      endDate: DateTime.now(),
+    ));
   }
 
   Map<String, double> get _ventasPorDia {
@@ -57,7 +57,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     for (final v in _ventas) {
       if (v.fecha.isAfter(now.subtract(const Duration(days: 7)))) {
         final key = DateFormat('dd/MM').format(v.fecha);
-        result[key] = (result[key] ?? 0) + v.total;
+        result[key] = (result[key] ?? 0) + v.totalIngresos;
       }
     }
     return result;
@@ -66,14 +66,17 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   Map<String, int> get _topProductos {
     final Map<String, int> result = {};
     for (final v in _ventas) {
-      result[v.productoNombre] = (result[v.productoNombre] ?? 0) + v.cantidad;
+      for (final d in v.detalles) {
+        final name = d.insumoNombre ?? 'Producto';
+        result[name] = (result[name] ?? 0) + d.cantidad.toInt();
+      }
     }
     final sorted = result.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     return Map.fromEntries(sorted.take(5));
   }
 
-  double get _totalGeneral => _ventas.fold(0.0, (sum, v) => sum + v.total);
+  double get _totalGeneral => _ventas.fold(0.0, (sum, v) => sum + v.totalIngresos);
   double get _promedioVenta =>
       _ventas.isEmpty ? 0 : _totalGeneral / _ventas.length;
 
@@ -81,32 +84,45 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Estadísticas')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : _ventas.isEmpty
-              ? _buildEmpty()
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const SizedBox(height: 8),
-                      _buildResumenCards(),
-                      const SizedBox(height: 24),
-                      const SectionHeader(title: 'Ventas últimos 7 días'),
-                      const SizedBox(height: 16),
-                      _buildBarChart(),
-                      const SizedBox(height: 24),
-                      const SectionHeader(title: 'Top productos más vendidos'),
-                      const SizedBox(height: 16),
-                      _buildTopProductos(),
-                      const SizedBox(height: 24),
-                      const SectionHeader(title: 'Distribución de ventas'),
-                      const SizedBox(height: 16),
-                      _buildPieChart(),
-                    ],
-                  ),
-                ),
+      body: BlocBuilder<VentaBloc, VentaState>(
+        builder: (context, state) {
+          if (state is VentaLoading || state is VentaInitial) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state is VentaError) {
+            return Center(child: Text('Error: ${state.message}'));
+          }
+          if (state is VentasLoaded) {
+            _ventas = state.ventas;
+            if (_ventas.isEmpty) {
+              return _buildEmpty();
+            }
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: 8),
+                  _buildResumenCards(),
+                  const SizedBox(height: 24),
+                  const SectionHeader(title: 'Ventas últimos 7 días'),
+                  const SizedBox(height: 16),
+                  _buildBarChart(),
+                  const SizedBox(height: 24),
+                  const SectionHeader(title: 'Top productos más vendidos'),
+                  const SizedBox(height: 16),
+                  _buildTopProductos(),
+                  const SizedBox(height: 24),
+                  const SectionHeader(title: 'Distribución de ventas'),
+                  const SizedBox(height: 16),
+                  _buildPieChart(),
+                ],
+              ),
+            );
+          }
+          return const SizedBox();
+        },
+      ),
     );
   }
 
@@ -137,10 +153,10 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
             v.fecha.year == now.year &&
             v.fecha.month == now.month &&
             v.fecha.day == now.day)
-        .fold(0.0, (sum, v) => sum + v.total);
+        .fold(0.0, (sum, v) => sum + v.totalIngresos);
     final ventasMes = _ventas
         .where((v) => v.fecha.year == now.year && v.fecha.month == now.month)
-        .fold(0.0, (sum, v) => sum + v.total);
+        .fold(0.0, (sum, v) => sum + v.totalIngresos);
 
     return GridView.count(
       crossAxisCount: 2,

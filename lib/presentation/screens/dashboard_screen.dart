@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../domain/models/producto_produccion.dart';
-import '../../domain/models/producto_venta.dart';
-import '../../domain/models/venta.dart';
-import '../../data/services/storage_service.dart';
+import '../../domain/models/insumo.dart';
+import '../../domain/models/venta_model.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import '../blocs/dashboard/dashboard_bloc.dart';
+import '../blocs/dashboard/dashboard_state.dart';
+import '../blocs/dashboard/dashboard_event.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 import 'inventario_produccion_screen.dart';
@@ -21,42 +23,11 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _storage = StorageService();
   final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
 
-  List<ProductoVenta> _productosVenta = [];
-  List<ProductoProduccion> _productosProduccion = [];
-  List<Venta> _ventas = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-    activeTabNotifier.addListener(_onTabChange);
-  }
-
-  void _onTabChange() {
-    if (activeTabNotifier.value == 0) _load();
-  }
-
-  @override
-  void dispose() {
-    activeTabNotifier.removeListener(_onTabChange);
-    super.dispose();
-  }
-
-  Future<void> _load() async {
-    final pv = await _storage.getProductosVenta();
-    final pp = await _storage.getProductosProduccion();
-    final v = await _storage.getVentas();
-    setState(() {
-      _productosVenta = pv;
-      _productosProduccion = pp;
-      _ventas = v;
-      _loading = false;
-    });
-  }
+  List<Insumo> _productosVenta = [];
+  List<Insumo> _productosProduccion = [];
+  List<VentaModel> _ventas = [];
 
   double get _ventasHoy {
     final hoy = DateTime.now();
@@ -65,31 +36,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
             v.fecha.year == hoy.year &&
             v.fecha.month == hoy.month &&
             v.fecha.day == hoy.day)
-        .fold(0.0, (sum, v) => sum + v.total);
+        .fold(0.0, (sum, v) => sum + v.totalIngresos);
   }
 
   double get _ventasMes {
     final hoy = DateTime.now();
     return _ventas
         .where((v) => v.fecha.year == hoy.year && v.fecha.month == hoy.month)
-        .fold(0.0, (sum, v) => sum + v.total);
+        .fold(0.0, (sum, v) => sum + v.totalIngresos);
   }
 
   int get _stockBajoCount => _productosVenta.where((p) => p.stockBajo).length;
   int get _nievesAgotadas => _productosVenta.where((p) => p.stockActual == 0 && p.categoria == 'Litro').length;
-  int get _insumosAgotados => _productosProduccion.where((p) => p.cantidad == 0).length;
+  int get _insumosAgotados => _productosProduccion.where((p) => p.stockActual == 0).length;
   int get _insumosBajos => _productosProduccion.where((p) => p.stockBajo).length;
 
-  List<Venta> get _ventasRecientes =>
+  List<VentaModel> get _ventasRecientes =>
       (_ventas..sort((a, b) => b.fecha.compareTo(a.fecha))).take(5).toList();
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : RefreshIndicator(
-              onRefresh: _load,
+      body: BlocBuilder<DashboardBloc, DashboardState>(
+        builder: (context, state) {
+          if (state is DashboardLoading || state is DashboardInitial) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (state is DashboardError) {
+            return Center(child: Text('Error: ${state.message}'));
+          }
+          if (state is DashboardLoaded) {
+            _productosVenta = state.insumos.where((i) => i.tipo == TipoInsumo.productoVenta).toList();
+            _productosProduccion = state.insumos.where((i) => i.tipo == TipoInsumo.materiaPrima).toList();
+            _ventas = state.ventas;
+
+            return RefreshIndicator(
+              onRefresh: () async {
+                context.read<DashboardBloc>().add(LoadDashboardEvent());
+              },
               child: CustomScrollView(
                 slivers: [
                   _buildAppBar(),
@@ -102,7 +86,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 28),
                         _buildQuickActions(),
                         const SizedBox(height: 28),
-        if (_stockBajoCount > 0 || _nievesAgotadas > 0 || _insumosAgotados > 0) ...[
+                        if (_stockBajoCount > 0 || _nievesAgotadas > 0 || _insumosAgotados > 0) ...[
                           _buildAlertas(),
                           const SizedBox(height: 28),
                         ],
@@ -118,7 +102,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ],
               ),
-            ),
+            );
+          }
+          return const SizedBox();
+        },
+      ),
     );
   }
 
@@ -395,7 +383,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: Colors.white, size: 20),
             ),
             title: Text(
-              v.productoNombre,
+              v.detalles.isNotEmpty
+                  ? '${v.detalles.first.insumoNombre ?? 'Venta'}${v.detalles.length > 1 ? ' + ${v.detalles.length - 1}' : ''}'
+                  : 'Venta',
               style: const TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
@@ -408,7 +398,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   fontSize: 12, color: AppTheme.textSecondary),
             ),
             trailing: Text(
-              _fmt.format(v.total),
+              _fmt.format(v.totalIngresos),
               style: const TextStyle(
                 fontWeight: FontWeight.w700,
                 color: AppTheme.primary,
@@ -422,8 +412,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _goTo(Widget screen) {
-    Navigator.push(context, MaterialPageRoute(builder: (_) => screen))
-        .then((_) => _load());
+    Navigator.push(context, MaterialPageRoute(builder: (_) => screen)).then((_) {
+      if (mounted) {
+        context.read<DashboardBloc>().add(LoadDashboardEvent());
+      }
+    });
   }
 }
 
