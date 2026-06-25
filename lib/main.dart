@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
-import 'theme/app_theme.dart';
-import 'screens/dashboard_screen.dart';
-import 'screens/inventario_produccion_screen.dart';
-import 'screens/inventario_venta_screen.dart';
-import 'screens/ventas_screen.dart';
-import 'screens/estadisticas_screen.dart';
-import 'services/storage_service.dart';
+import 'core/theme/app_theme.dart';
+import 'presentation/screens/dashboard_screen.dart';
+import 'presentation/screens/inventario_produccion_screen.dart';
+import 'presentation/screens/inventario_venta_screen.dart';
+import 'presentation/screens/ventas_screen.dart';
+import 'presentation/screens/estadisticas_screen.dart';
+import 'data/services/storage_service.dart';
 
-import 'widgets/indexed_stack_resume.dart';
+import 'core/widgets/indexed_stack_resume.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

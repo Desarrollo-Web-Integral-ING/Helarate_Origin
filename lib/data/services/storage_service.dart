@@ -1,9 +1,9 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
-import '../models/producto_produccion.dart';
-import '../models/producto_venta.dart';
-import '../models/venta.dart';
+import '../../domain/models/producto_produccion.dart';
+import '../../domain/models/producto_venta.dart';
+import '../../domain/models/venta.dart';
 
 class StorageService {
   static const _keyProduccion = 'productos_produccion';

@@ -3,11 +3,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../models/producto_venta.dart';
-import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
+import '../../domain/models/producto_venta.dart';
+import '../../data/services/storage_service.dart';
+import '../../core/theme/app_theme.dart';
 
-import '../widgets/indexed_stack_resume.dart';
+import '../../core/widgets/indexed_stack_resume.dart';
 
 class InventarioVentaScreen extends StatefulWidget {
   const InventarioVentaScreen({super.key});
