@@ -1,4 +1,5 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import '../../../domain/models/venta_model.dart';
 import '../../../domain/repositories/venta_repository.dart';
 import 'venta_event.dart';
 import 'venta_state.dart';

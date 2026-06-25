@@ -78,7 +78,7 @@ class _InventarioProduccionScreenState
   }
 
   Future<String?> _pickImage() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.image,
       allowMultiple: false,
     );
