@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
@@ -13,6 +16,17 @@ import 'core/widgets/indexed_stack_resume.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // Inicialización de Variables de Entorno y Supabase
+  await dotenv.load(fileName: '.env');
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    publishableKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+  );
+  
+  // Inicialización de Inyector de Dependencias
+  setupServiceLocator();
+
   await initializeDateFormatting('es_MX', null);
   await StorageService().inicializarDatosDefecto();
   SystemChrome.setSystemUIOverlayStyle(
