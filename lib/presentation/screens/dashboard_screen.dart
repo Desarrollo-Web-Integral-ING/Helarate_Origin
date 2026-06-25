@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../models/producto_produccion.dart';
-import '../models/producto_venta.dart';
-import '../models/venta.dart';
-import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
+import '../../domain/models/producto_produccion.dart';
+import '../../domain/models/producto_venta.dart';
+import '../../domain/models/venta.dart';
+import '../../data/services/storage_service.dart';
+import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 import 'inventario_produccion_screen.dart';
 import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
 import 'estadisticas_screen.dart';
 
-import '../widgets/indexed_stack_resume.dart';
+import '../../core/widgets/indexed_stack_resume.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});

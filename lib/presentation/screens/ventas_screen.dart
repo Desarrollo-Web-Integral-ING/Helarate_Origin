@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
-import '../models/producto_venta.dart';
-import '../models/venta.dart';
-import '../services/storage_service.dart';
-import '../theme/app_theme.dart';
+import '../../domain/models/producto_venta.dart';
+import '../../domain/models/venta.dart';
+import '../../data/services/storage_service.dart';
+import '../../core/theme/app_theme.dart';
 
-import '../widgets/indexed_stack_resume.dart';
+import '../../core/widgets/indexed_stack_resume.dart';
 
 class VentasScreen extends StatefulWidget {
   const VentasScreen({super.key});
