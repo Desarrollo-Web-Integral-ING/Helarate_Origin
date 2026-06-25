@@ -21,17 +21,29 @@ class SupabaseVentaRepository implements VentaRepository {
 
   @override
   Future<List<VentaModel>> getByDate(DateTime date) async {
-    final startOfDay = DateTime(date.year, date.month, date.day, 0, 0, 0).toUtc().toIso8601String();
-    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59).toUtc().toIso8601String();
+    final startOfDay = DateTime(date.year, date.month, date.day, 0, 0, 0);
+    final endOfDay = DateTime(date.year, date.month, date.day, 23, 59, 59);
+    return getByDateRange(startOfDay, endOfDay);
+  }
+
+  @override
+  Future<List<VentaModel>> getByDateRange(DateTime start, DateTime end) async {
+    final startStr = start.toUtc().toIso8601String();
+    final endStr = end.toUtc().toIso8601String();
 
     final response = await _client
         .from('ventas')
         .select('*, detalle_venta(*, insumos(nombre))')
-        .gte('fecha', startOfDay)
-        .lte('fecha', endOfDay)
+        .gte('fecha', startStr)
+        .lte('fecha', endStr)
         .order('fecha', ascending: false);
 
     return (response as List).map((json) => VentaModel.fromJson(json)).toList();
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    await _client.from('ventas').delete().eq('id', id);
   }
 
   @override
