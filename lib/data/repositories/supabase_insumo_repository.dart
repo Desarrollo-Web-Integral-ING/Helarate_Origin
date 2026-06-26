@@ -1,33 +1,51 @@
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/insumo.dart';
 import '../../domain/repositories/insumo_repository.dart';
 
-// Pattern: Repository
+
 class SupabaseInsumoRepository implements InsumoRepository {
-  // TODO: Obtener la instancia del cliente de Supabase (Supabase.instance.client)
+  final _client = Supabase.instance.client;
 
   @override
   Future<List<Insumo>> getAll() async {
-    // TODO: Consultar la tabla 'insumos' ordenada por 'nombre' de forma ascendente
-    // Deserializar usando Insumo.fromJson(json)
-    throw UnimplementedError();
+    final userId = _client.auth.currentUser?.id;
+
+    final response = await _client
+        .from('insumos')
+        .select()
+        .eq('user_id', userId!)
+        .order('nombre', ascending: true);
+
+    return (response as List)
+        .map((json) => Insumo.fromJson(json as Map<String, dynamic>))
+        .toList();
   }
 
   @override
   Future<void> create(Insumo insumo) async {
-    // TODO: Convertir insumo a JSON e insertarlo en la tabla 'insumos'
-    throw UnimplementedError();
+    final userId = _client.auth.currentUser?.id;
+
+    final data = insumo.toJson();
+    data['user_id'] = userId;
+
+    await _client.from('insumos').insert(data);
   }
 
   @override
   Future<void> update(Insumo insumo) async {
-    // TODO: Convertir insumo a JSON y actualizar la fila correspondiente en 'insumos' por su id
-    throw UnimplementedError();
+    final data = insumo.toJson()..remove('id');
+
+    await _client
+        .from('insumos')
+        .update(data)
+        .eq('id', insumo.id);
   }
 
   @override
   Future<void> delete(String id) async {
-    // TODO: Eliminar la fila en la tabla 'insumos' usando su id
-    throw UnimplementedError();
+    await _client
+        .from('insumos')
+        .delete()
+        .eq('id', id);
   }
 }
-
