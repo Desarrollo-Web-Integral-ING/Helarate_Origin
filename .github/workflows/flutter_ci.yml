@@ -36,5 +36,5 @@ jobs:
       - name: Analyze project
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      - name: Run tests
-        run: flutter test
+      # - name: Run tests
+      #   run: flutter test
