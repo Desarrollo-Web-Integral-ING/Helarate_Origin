@@ -21,12 +21,16 @@ class SupabaseGastoRepository implements GastoRepository {
     final userId   = _client.auth.currentUser?.id;
     final dateStr  = date.toIso8601String().substring(0, 10); // 'YYYY-MM-DD'
 
-    final response = await _client
+    var query = _client
         .from('gastos_operativos')
         .select('*, insumos(nombre)')
-        .eq('user_id', userId!)
-        .eq('fecha', dateStr)
-        .order('fecha', ascending: false);
+        .eq('fecha', dateStr);
+
+    if (userId != null) {
+      query = query.eq('user_id', userId);
+    }
+
+    final response = await query.order('fecha', ascending: false);
 
     return (response as List)
         .map((json) => GastoModel.fromJson(json as Map<String, dynamic>))
