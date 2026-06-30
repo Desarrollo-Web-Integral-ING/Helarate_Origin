@@ -121,40 +121,168 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    final isLargeScreen = width >= 800;
+
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.08),
-              blurRadius: 20,
-              offset: const Offset(0, -4),
+      body: Row(
+        children: [
+          if (isLargeScreen) _buildWebSidebar(),
+          Expanded(
+            child: IndexedStack(
+              index: _currentIndex,
+              children: _screens,
             ),
-          ],
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+          ),
+        ],
+      ),
+      bottomNavigationBar: isLargeScreen
+          ? null
+          : Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, -4),
+                  ),
+                ],
+              ),
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+                      _navItem(1, Icons.inventory_2_rounded,
+                          Icons.inventory_2_outlined, 'Insumos'),
+                      _navItem(
+                          2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
+                      _navItem(3, Icons.point_of_sale_rounded,
+                          Icons.point_of_sale_outlined, 'Ventas'),
+                      _navItem(4, Icons.bar_chart_rounded,
+                          Icons.bar_chart_outlined, 'Stats'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+
+  Widget _buildWebSidebar() {
+    return Container(
+      width: 250,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(4, 0),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
-                _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
-                _navItem(1, Icons.inventory_2_rounded,
+                ShaderMask(
+                  shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
+                  child: const Icon(
+                    Icons.icecream_rounded,
+                    color: Colors.white,
+                    size: 32,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Text(
+                  'Helarate',
+                  style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 22,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 0.5,
+                  ),
+                ),
+                const Text(
+                  ' 🍦',
+                  style: TextStyle(fontSize: 18),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 10),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              children: [
+                _sidebarItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+                const SizedBox(height: 8),
+                _sidebarItem(1, Icons.inventory_2_rounded,
                     Icons.inventory_2_outlined, 'Insumos'),
-                _navItem(
+                const SizedBox(height: 8),
+                _sidebarItem(
                     2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
-                _navItem(3, Icons.point_of_sale_rounded,
+                const SizedBox(height: 8),
+                _sidebarItem(3, Icons.point_of_sale_rounded,
                     Icons.point_of_sale_outlined, 'Ventas'),
-                _navItem(4, Icons.bar_chart_rounded,
+                const SizedBox(height: 8),
+                _sidebarItem(4, Icons.bar_chart_rounded,
                     Icons.bar_chart_outlined, 'Stats'),
               ],
             ),
           ),
+          const Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'v1.0.0',
+              style: TextStyle(
+                color: AppTheme.textSecondary,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sidebarItem(
+      int index, IconData activeIcon, IconData inactiveIcon, String label) {
+    final isActive = _currentIndex == index;
+    return GestureDetector(
+      onTap: () => _onTabTap(index),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          gradient: isActive ? AppTheme.primaryGradient : null,
+          color: isActive ? null : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isActive ? activeIcon : inactiveIcon,
+              color: isActive ? Colors.white : AppTheme.textSecondary,
+              size: 22,
+            ),
+            const SizedBox(width: 12),
+            Text(
+              label,
+              style: TextStyle(
+                color: isActive ? Colors.white : AppTheme.textPrimary,
+                fontSize: 14,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       ),
     );
