@@ -9,13 +9,12 @@ class SupabaseInsumoRepository implements InsumoRepository {
   @override
   Future<List<Insumo>> getAll() async {
     final userId = _client.auth.currentUser?.id;
-
-    final response = await _client
-        .from('insumos')
-        .select()
-        .eq('user_id', userId!)
-        .order('nombre', ascending: true);
-
+    var query = _client.from('insumos').select();
+    if (userId != null) {
+      query = query.eq('user_id', userId);
+    }
+    
+    final response = await query.order('nombre', ascending: true);
     return (response as List)
         .map((json) => Insumo.fromJson(json as Map<String, dynamic>))
         .toList();

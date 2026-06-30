@@ -36,13 +36,17 @@ class SupabaseVentaRepository implements VentaRepository {
     final startStr = start.toIso8601String().substring(0, 10); // 'YYYY-MM-DD'
     final endStr   = end.toIso8601String().substring(0, 10);
 
-    final response = await _client
+    var query = _client
         .from('ventas')
         .select('*, detalle_venta(*, insumos(nombre))')
-        .eq('user_id', userId!)
         .gte('fecha', startStr)
-        .lte('fecha', endStr)
-        .order('fecha', ascending: false);
+        .lte('fecha', endStr);
+
+    if (userId != null) {
+      query = query.eq('user_id', userId);
+    }
+
+    final response = await query.order('fecha', ascending: false);
 
     return (response as List)
         .map((json) => VentaModel.fromJson(json as Map<String, dynamic>))
