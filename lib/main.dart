@@ -28,10 +28,17 @@ void main() async {
   
   // Inicialización de Variables de Entorno y Supabase
   await dotenv.load(fileName: '.env');
+  final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
+  final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
+  print('--- HELARATE DEBUG: VARIABLES DE ENTORNO ---');
+  print('SUPABASE_URL: $supabaseUrl');
+  print('SUPABASE_ANON_KEY (longitud): ${supabaseKey.length}');
+  
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    publishableKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+    url: supabaseUrl,
+    publishableKey: supabaseKey,
   );
+  print('--- HELARATE DEBUG: SUPABASE INICIALIZADO ---');
   
   // Inicialización de Inyector de Dependencias
   setupServiceLocator();
