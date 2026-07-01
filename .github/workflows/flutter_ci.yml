@@ -25,10 +25,10 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create .env file
+      - name: Create dummy .env for analysis
         run: |
-          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
-          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+          echo "SUPABASE_URL=" > .env
+          echo "SUPABASE_ANON_KEY=" >> .env
 
       - name: Install dependencies
         run: flutter pub get
@@ -36,5 +36,37 @@ jobs:
       - name: Analyze project
         run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
-      # - name: Run tests
-      #   run: flutter test
+      - name: Run tests
+        run: flutter test
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Create .env file
+        run: |
+          echo "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" > .env
+          echo "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" >> .env
+
+      - name: Build Flutter Web
+        run: |
+          flutter config --enable-web
+          flutter build web --release
+
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: '--prod'
+          working-directory: .
