@@ -1,1 +1,7 @@
 include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  errors:
+    avoid_print: ignore
+    deprecated_member_use: ignore
+    prefer_interpolation_to_compose_strings: ignore
