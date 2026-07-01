@@ -13,8 +13,6 @@ import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
 import 'estadisticas_screen.dart';
 
-import '../../core/widgets/indexed_stack_resume.dart';
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
