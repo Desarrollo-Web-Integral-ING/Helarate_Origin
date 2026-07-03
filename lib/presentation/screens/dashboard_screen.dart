@@ -6,6 +6,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../blocs/dashboard/dashboard_bloc.dart';
 import '../blocs/dashboard/dashboard_state.dart';
 import '../blocs/dashboard/dashboard_event.dart';
+import '../blocs/auth/auth_bloc.dart';
+import '../blocs/auth/auth_event.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 import 'inventario_produccion_screen.dart';
@@ -152,6 +154,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                   ),
+                  if (MediaQuery.of(context).size.width < 800) ...[
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.logout_rounded, color: Colors.white),
+                      tooltip: 'Cerrar sesión',
+                      onPressed: () {
+                        context.read<AuthBloc>().add(SignOutRequested());
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
