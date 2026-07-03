@@ -2,23 +2,29 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 import 'package:flutter_bloc/flutter_bloc.dart';
+
 import 'core/di/service_locator.dart';
 import 'core/theme/app_theme.dart';
 import 'domain/repositories/insumo_repository.dart';
 import 'domain/repositories/venta_repository.dart';
+import 'domain/repositories/auth_repository.dart';
 import 'presentation/blocs/inventario/inventario_bloc.dart';
 import 'presentation/blocs/inventario/inventario_event.dart';
 import 'presentation/blocs/venta/venta_bloc.dart';
 import 'presentation/blocs/venta/venta_event.dart';
 import 'presentation/blocs/dashboard/dashboard_bloc.dart';
 import 'presentation/blocs/dashboard/dashboard_event.dart';
+import 'presentation/blocs/auth/auth_bloc.dart';
+import 'presentation/blocs/auth/auth_event.dart';
+import 'presentation/blocs/auth/auth_state.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
 import 'presentation/screens/ventas_screen.dart';
 import 'presentation/screens/estadisticas_screen.dart';
+import 'presentation/screens/login_screen.dart';
 
 
 import 'core/widgets/indexed_stack_resume.dart';
@@ -61,6 +67,11 @@ class NeveroApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
+        BlocProvider<AuthBloc>(
+          create: (context) => AuthBloc(
+            authRepository: getIt<AuthRepository>(),
+          )..add(AppStarted()),
+        ),
         BlocProvider<InventarioBloc>(
           create: (context) => InventarioBloc(
             insumoRepository: getIt<InsumoRepository>(),
@@ -82,7 +93,21 @@ class NeveroApp extends StatelessWidget {
         title: 'Mi Nevería',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.theme,
-        home: const MainNavigation(),
+        home: BlocBuilder<AuthBloc, AuthState>(
+          builder: (context, state) {
+            if (state is Authenticated) {
+              return const MainNavigation();
+            }
+            if (state is Unauthenticated || state is AuthFailure) {
+              return const LoginScreen();
+            }
+            return const Scaffold(
+              body: Center(
+                child: CircularProgressIndicator(),
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -242,6 +267,36 @@ class _MainNavigationState extends State<MainNavigation> {
                 const SizedBox(height: 8),
                 _sidebarItem(4, Icons.bar_chart_rounded,
                     Icons.bar_chart_outlined, 'Stats'),
+                const Divider(height: 32, thickness: 1),
+                GestureDetector(
+                  onTap: () {
+                    context.read<AuthBloc>().add(SignOutRequested());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.logout_rounded,
+                          color: AppTheme.secondary,
+                          size: 22,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Cerrar Sesión',
+                          style: TextStyle(
+                            color: AppTheme.secondary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
