@@ -433,6 +433,7 @@ class _InventarioProduccionScreenState
     String? imagenPath = producto?.imagenPath;
     PickedImageData? selectedImage;
     bool isSaving = false;
+    final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -449,166 +450,237 @@ class _InventarioProduccionScreenState
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: Container(width: 40, height: 4,
-                    decoration: BoxDecoration(color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2)))),
-                const SizedBox(height: 16),
-                Text(isEdit ? 'Editar insumo' : 'Nuevo insumo',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 16),
-                GestureDetector(
-                  onTap: () async {
-                    final picked = await _pickImage();
-                    if (picked != null) {
-                      setModal(() {
-                        selectedImage = picked;
-                        imagenPath = picked.name;
-                      });
-                    }
-                  },
-                  child: Container(
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F1FF),
-                      borderRadius: BorderRadius.circular(14),
-                      image: selectedImage != null
-                          ? DecorationImage(
-                              image: MemoryImage(Uint8List.fromList(selectedImage!.bytes)),
-                              fit: BoxFit.cover,
-                            )
-                          : (imagenPath != null
-                              ? (imagenPath!.startsWith('http')
-                                  ? DecorationImage(image: NetworkImage(imagenPath!), fit: BoxFit.cover)
-                                  : (!kIsWeb
-                                      ? DecorationImage(image: FileImage(File(imagenPath!)), fit: BoxFit.cover)
-                                      : null))
-                              : null),
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Text(isEdit ? 'Editar insumo' : 'Nuevo insumo',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary)),
+                  const SizedBox(height: 16),
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await _pickImage();
+                      if (picked != null) {
+                        setModal(() {
+                          selectedImage = picked;
+                          imagenPath = picked.name;
+                        });
+                      }
+                    },
+                    child: Container(
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F1FF),
+                        borderRadius: BorderRadius.circular(14),
+                        image: selectedImage != null
+                            ? DecorationImage(
+                                image: MemoryImage(Uint8List.fromList(selectedImage!.bytes)),
+                                fit: BoxFit.cover,
+                              )
+                            : (imagenPath != null
+                                ? (imagenPath!.startsWith('http')
+                                    ? DecorationImage(image: NetworkImage(imagenPath!), fit: BoxFit.cover)
+                                    : (!kIsWeb
+                                        ? DecorationImage(image: FileImage(File(imagenPath!)), fit: BoxFit.cover)
+                                        : null))
+                                : null),
+                      ),
+                      child: (selectedImage == null && imagenPath == null)
+                          ? const Center(child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined,
+                                    color: AppTheme.textSecondary, size: 28),
+                                SizedBox(height: 4),
+                                Text('Agregar imagen (opcional)',
+                                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                              ]))
+                          : Align(
+                              alignment: Alignment.topRight,
+                              child: GestureDetector(
+                                onTap: () => setModal(() {
+                                  selectedImage = null;
+                                  imagenPath = null;
+                                }),
+                                child: Container(
+                                  margin: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                      color: Colors.black54, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                ),
+                              )),
                     ),
-                    child: (selectedImage == null && imagenPath == null)
-                        ? const Center(child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate_outlined,
-                                  color: AppTheme.textSecondary, size: 28),
-                              SizedBox(height: 4),
-                              Text('Agregar imagen (opcional)',
-                                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                            ]))
-                        : Align(
-                            alignment: Alignment.topRight,
-                            child: GestureDetector(
-                              onTap: () => setModal(() {
-                                selectedImage = null;
-                                imagenPath = null;
-                              }),
-                              child: Container(
-                                margin: const EdgeInsets.all(6),
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                    color: Colors.black54, shape: BoxShape.circle),
-                                child: const Icon(Icons.close, color: Colors.white, size: 14),
-                              ),
-                            )),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(controller: nombreCtrl,
-                    decoration: const InputDecoration(labelText: 'Nombre del insumo')),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: TextField(controller: cantidadCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Cantidad actual'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: unidadCtrl,
-                      decoration: const InputDecoration(labelText: 'Unidad (kg, L, pzs)'))),
-                ]),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: TextField(controller: precioCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Precio/unidad (\$)'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: cantMinCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Cantidad mínima'))),
-                ]),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: categoria,
-                  decoration: const InputDecoration(labelText: 'Categoría'),
-                  items: _categorias.map((c) =>
-                      DropdownMenuItem(value: c, child: Text(c))).toList(),
-                  onChanged: (v) => setModal(() => categoria = v!),
-                ),
-                const SizedBox(height: 20),
-                 SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: isSaving
-                        ? null
-                        : () async {
-                            if (nombreCtrl.text.isEmpty) return;
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nombreCtrl,
+                    decoration: const InputDecoration(labelText: 'Nombre del insumo'),
+                    maxLength: 50,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Por favor ingresa el nombre del insumo';
+                      }
+                      if (value.trim().length > 50) {
+                        return 'El nombre no puede superar los 50 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: cantidadCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Cantidad actual'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return null;
+                          final val = double.tryParse(value);
+                          if (val == null) {
+                            return 'Número no válido';
+                          }
+                          if (val < 0) {
+                            return 'No puede ser menor a 0';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: unidadCtrl,
+                        decoration: const InputDecoration(labelText: 'Unidad (kg, L, pzs)'),
+                        maxLength: 15,
+                        validator: (value) {
+                          if (value != null && value.trim().length > 15) {
+                            return 'Máximo 15 caracteres';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: precioCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Precio/unidad (\$)'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return null;
+                          final val = double.tryParse(value);
+                          if (val == null) {
+                            return 'Número no válido';
+                          }
+                          if (val < 0) {
+                            return 'No puede ser menor a 0';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: cantMinCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Cantidad mínima'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return null;
+                          final val = double.tryParse(value);
+                          if (val == null) {
+                            return 'Número no válido';
+                          }
+                          if (val < 0) {
+                            return 'No puede ser menor a 0';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    value: categoria,
+                    decoration: const InputDecoration(labelText: 'Categoría'),
+                    items: _categorias.map((c) =>
+                        DropdownMenuItem(value: c, child: Text(c))).toList(),
+                    onChanged: (v) => setModal(() => categoria = v!),
+                  ),
+                  const SizedBox(height: 20),
+                   SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              if (!formKey.currentState!.validate()) return;
 
-                            setModal(() {
-                              isSaving = true;
-                            });
+                              setModal(() {
+                                isSaving = true;
+                              });
 
-                            String? finalImagenPath = imagenPath;
+                              String? finalImagenPath = imagenPath;
 
-                            if (selectedImage != null) {
-                              final repo = context.read<InventarioBloc>().insumoRepository;
-                              final uploadedUrl = await repo.uploadImage(
-                                nombreCtrl.text.trim().replaceAll(' ', '_'),
-                                selectedImage!.bytes,
-                                selectedImage!.extension,
-                              );
-                              if (uploadedUrl != null) {
-                                finalImagenPath = uploadedUrl;
+                              if (selectedImage != null) {
+                                final repo = context.read<InventarioBloc>().insumoRepository;
+                                final uploadedUrl = await repo.uploadImage(
+                                  nombreCtrl.text.trim().replaceAll(' ', '_'),
+                                  selectedImage!.bytes,
+                                  selectedImage!.extension,
+                                );
+                                if (uploadedUrl != null) {
+                                  finalImagenPath = uploadedUrl;
+                                }
                               }
-                            }
 
-                            final p = Insumo(
-                              id: producto?.id ?? const Uuid().v4(),
-                              nombre: nombreCtrl.text.trim(),
-                              unidad: unidadCtrl.text.trim().isEmpty ? 'pzs' : unidadCtrl.text.trim(),
-                              stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
-                              stockMinimo: double.tryParse(cantMinCtrl.text) ?? 0,
-                              costoUnitario: double.tryParse(precioCtrl.text) ?? 0,
-                              categoria: categoria,
-                              tipo: TipoInsumo.materiaPrima,
-                              precioVenta: 0,
-                              userId: producto?.userId,
-                              updatedAt: DateTime.now(),
-                              imagenPath: finalImagenPath,
-                            );
+                              final p = Insumo(
+                                id: producto?.id ?? const Uuid().v4(),
+                                nombre: nombreCtrl.text.trim(),
+                                unidad: unidadCtrl.text.trim().isEmpty ? 'pzs' : unidadCtrl.text.trim(),
+                                stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
+                                stockMinimo: double.tryParse(cantMinCtrl.text) ?? 0,
+                                costoUnitario: double.tryParse(precioCtrl.text) ?? 0,
+                                categoria: categoria,
+                                tipo: TipoInsumo.materiaPrima,
+                                precioVenta: 0,
+                                userId: producto?.userId,
+                                updatedAt: DateTime.now(),
+                                imagenPath: finalImagenPath,
+                              );
 
-                            if (isEdit) {
-                              context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
-                            } else {
-                              context.read<InventarioBloc>().add(AddInsumoEvent(p));
-                            }
+                              if (isEdit) {
+                                context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
+                              } else {
+                                context.read<InventarioBloc>().add(AddInsumoEvent(p));
+                              }
 
-                            if (mounted) Navigator.pop(context);
-                          },
-                    child: isSaving
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                            ),
-                          )
-                        : Text(isEdit ? 'Guardar cambios' : 'Agregar insumo'),
+                              if (mounted) Navigator.pop(context);
+                            },
+                      child: isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(isEdit ? 'Guardar cambios' : 'Agregar insumo'),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
