@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -77,12 +79,32 @@ class _InventarioProduccionScreenState
     context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
 
-  Future<String?> _pickImage() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image,
-      allowMultiple: false,
-    );
-    return result?.files.single.path;
+  Future<PickedImageData?> _pickImage() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return null;
+      final file = result.files.first;
+
+      List<int>? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        bytes = await File(file.path!).readAsBytes();
+      }
+
+      if (bytes == null) return null;
+
+      return PickedImageData(
+        name: file.name,
+        bytes: bytes,
+        extension: file.extension ?? 'png',
+        localPath: file.path,
+      );
+    } catch (e) {
+      print('Error al seleccionar imagen: $e');
+      return null;
+    }
   }
 
   @override
@@ -285,11 +307,32 @@ class _InventarioProduccionScreenState
 
   Widget _avatar(String? path, bool agotado, bool stockBajo,
       {required IconData fallbackIcon, required LinearGradient fallbackGradient}) {
-    if (path != null && File(path).existsSync()) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Image.file(File(path), width: 48, height: 48, fit: BoxFit.cover),
-      );
+    if (path != null) {
+      if (path.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.network(
+            path,
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.broken_image_rounded, color: Colors.grey, size: 20),
+            ),
+          ),
+        );
+      }
+      if (!kIsWeb && File(path).existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.file(File(path), width: 48, height: 48, fit: BoxFit.cover),
+        );
+      }
     }
     return Container(
       width: 48, height: 48,
@@ -388,6 +431,8 @@ class _InventarioProduccionScreenState
     String categoria = _categorias.contains(producto?.categoria)
         ? producto!.categoria : _categorias.first;
     String? imagenPath = producto?.imagenPath;
+    PickedImageData? selectedImage;
+    bool isSaving = false;
 
     showModalBottomSheet(
       context: context,
@@ -418,20 +463,33 @@ class _InventarioProduccionScreenState
                 const SizedBox(height: 16),
                 GestureDetector(
                   onTap: () async {
-                    final path = await _pickImage();
-                    if (path != null) setModal(() => imagenPath = path);
+                    final picked = await _pickImage();
+                    if (picked != null) {
+                      setModal(() {
+                        selectedImage = picked;
+                        imagenPath = picked.name;
+                      });
+                    }
                   },
                   child: Container(
                     height: 90,
                     decoration: BoxDecoration(
                       color: const Color(0xFFF0F1FF),
                       borderRadius: BorderRadius.circular(14),
-                      image: imagenPath != null
+                      image: selectedImage != null
                           ? DecorationImage(
-                              image: FileImage(File(imagenPath!)), fit: BoxFit.cover)
-                          : null,
+                              image: MemoryImage(Uint8List.fromList(selectedImage!.bytes)),
+                              fit: BoxFit.cover,
+                            )
+                          : (imagenPath != null
+                              ? (imagenPath!.startsWith('http')
+                                  ? DecorationImage(image: NetworkImage(imagenPath!), fit: BoxFit.cover)
+                                  : (!kIsWeb
+                                      ? DecorationImage(image: FileImage(File(imagenPath!)), fit: BoxFit.cover)
+                                      : null))
+                              : null),
                     ),
-                    child: imagenPath == null
+                    child: (selectedImage == null && imagenPath == null)
                         ? const Center(child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
@@ -444,7 +502,10 @@ class _InventarioProduccionScreenState
                         : Align(
                             alignment: Alignment.topRight,
                             child: GestureDetector(
-                              onTap: () => setModal(() => imagenPath = null),
+                              onTap: () => setModal(() {
+                                selectedImage = null;
+                                imagenPath = null;
+                              }),
                               child: Container(
                                 margin: const EdgeInsets.all(6),
                                 padding: const EdgeInsets.all(4),
@@ -486,33 +547,65 @@ class _InventarioProduccionScreenState
                   onChanged: (v) => setModal(() => categoria = v!),
                 ),
                 const SizedBox(height: 20),
-                SizedBox(
+                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: () {
-                      if (nombreCtrl.text.isEmpty) return;
-                      final p = Insumo(
-                        id: producto?.id ?? const Uuid().v4(),
-                        nombre: nombreCtrl.text.trim(),
-                        unidad: unidadCtrl.text.trim().isEmpty ? 'pzs' : unidadCtrl.text.trim(),
-                        stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
-                        stockMinimo: double.tryParse(cantMinCtrl.text) ?? 0,
-                        costoUnitario: double.tryParse(precioCtrl.text) ?? 0,
-                        categoria: categoria,
-                        tipo: TipoInsumo.materiaPrima,
-                        precioVenta: 0,
-                        userId: producto?.userId,
-                        updatedAt: DateTime.now(),
-                        imagenPath: imagenPath,
-                      );
-                      if (isEdit) {
-                        context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
-                      } else {
-                        context.read<InventarioBloc>().add(AddInsumoEvent(p));
-                      }
-                      if (mounted) Navigator.pop(context);
-                    },
-                    child: Text(isEdit ? 'Guardar cambios' : 'Agregar insumo'),
+                    onPressed: isSaving
+                        ? null
+                        : () async {
+                            if (nombreCtrl.text.isEmpty) return;
+
+                            setModal(() {
+                              isSaving = true;
+                            });
+
+                            String? finalImagenPath = imagenPath;
+
+                            if (selectedImage != null) {
+                              final repo = context.read<InventarioBloc>().insumoRepository;
+                              final uploadedUrl = await repo.uploadImage(
+                                nombreCtrl.text.trim().replaceAll(' ', '_'),
+                                selectedImage!.bytes,
+                                selectedImage!.extension,
+                              );
+                              if (uploadedUrl != null) {
+                                finalImagenPath = uploadedUrl;
+                              }
+                            }
+
+                            final p = Insumo(
+                              id: producto?.id ?? const Uuid().v4(),
+                              nombre: nombreCtrl.text.trim(),
+                              unidad: unidadCtrl.text.trim().isEmpty ? 'pzs' : unidadCtrl.text.trim(),
+                              stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
+                              stockMinimo: double.tryParse(cantMinCtrl.text) ?? 0,
+                              costoUnitario: double.tryParse(precioCtrl.text) ?? 0,
+                              categoria: categoria,
+                              tipo: TipoInsumo.materiaPrima,
+                              precioVenta: 0,
+                              userId: producto?.userId,
+                              updatedAt: DateTime.now(),
+                              imagenPath: finalImagenPath,
+                            );
+
+                            if (isEdit) {
+                              context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
+                            } else {
+                              context.read<InventarioBloc>().add(AddInsumoEvent(p));
+                            }
+
+                            if (mounted) Navigator.pop(context);
+                          },
+                    child: isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(isEdit ? 'Guardar cambios' : 'Agregar insumo'),
                   ),
                 ),
               ],
@@ -544,4 +637,18 @@ class _InventarioProduccionScreenState
       ),
     );
   }
+}
+
+class PickedImageData {
+  final String name;
+  final List<int> bytes;
+  final String extension;
+  final String? localPath;
+
+  PickedImageData({
+    required this.name,
+    required this.bytes,
+    required this.extension,
+    this.localPath,
+  });
 }

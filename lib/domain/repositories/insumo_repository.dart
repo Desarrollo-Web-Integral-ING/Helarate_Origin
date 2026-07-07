@@ -6,4 +6,5 @@ abstract class InsumoRepository {
   Future<void> create(Insumo insumo);
   Future<void> update(Insumo insumo);
   Future<void> delete(String id);
+  Future<String?> uploadImage(String name, List<int> bytes, String extension);
 }
