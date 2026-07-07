@@ -17,6 +17,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _acceptPrivacyPolicy = false;
 
   @override
   void dispose() {
@@ -26,14 +27,92 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _submitForm() {
+    if (!_acceptPrivacyPolicy) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: const [
+              Icon(Icons.warning_amber_rounded, color: Colors.white),
+              SizedBox(width: 8),
+              Expanded(child: Text('Debes aceptar el Aviso de Privacidad para iniciar sesión.')),
+            ],
+          ),
+          backgroundColor: AppTheme.secondary,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      );
+      return;
+    }
     if (_formKey.currentState!.validate()) {
       context.read<AuthBloc>().add(
             SignInRequested(
-              email: _emailController.text,
+              email: _emailController.text.trim(),
               password: _passwordController.text,
             ),
           );
     }
+  }
+
+  void _showPrivacyPolicy() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
+            SizedBox(width: 10),
+            Text(
+              'Aviso de Privacidad',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 500,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Text(
+                  'AVISO DE PRIVACIDAD SIMPLIFICADO',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  'Helarate, en cumplimiento con la Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados (LGPDPPSO), es responsable del tratamiento de sus datos personales. Los datos personales que recabamos (correo electrónico, nombre completo y rol del sistema) serán utilizados única y exclusivamente para los fines de autenticación, control de accesos basados en roles (RBAC) y auditoría en el sistema de ventas e inventarios de la nevería.',
+                  style: TextStyle(fontSize: 11, height: 1.4, color: AppTheme.textSecondary),
+                ),
+                Divider(height: 24),
+                Text(
+                  'AVISO DE PRIVACIDAD INTEGRAL',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  '1. Responsable del Tratamiento:\nHelarate opera como un sistema de control de inventarios de neverías tradicionales de carácter institucional y educativo.\n\n'
+                  '2. Datos Personales Recabados:\n- Correo electrónico.\n- Nombre completo.\n- Rol asignado (dueño/empleado).\n\n'
+                  '3. Finalidad del Tratamiento:\nSus datos son necesarios para:\n- Registrar y controlar el acceso de usuarios.\n- Asignar roles operativos dentro del inventario.\n- Auditar las operaciones de ventas y modificaciones de stock (trazabilidad).\n\n'
+                  '4. Transferencias de Datos:\nSe informa que no se realizan transferencias de sus datos personales a terceras personas ni dependencias externas.\n\n'
+                  '5. Ejercicio de Derechos ARCO:\nUsted tiene derecho a conocer qué datos tenemos de usted, corregirlos en caso de ser inexactos, solicitar su cancelación o eliminación, y oponerse a su uso. Puede ejercer sus derechos ARCO directamente mediante las opciones correspondientes configuradas en su panel de perfil de usuario dentro de la aplicación, o bien enviando un correo al administrador de la institución.',
+                  style: TextStyle(fontSize: 11, height: 1.4, color: AppTheme.textSecondary),
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -281,7 +360,45 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Checkbox(
+                value: _acceptPrivacyPolicy,
+                onChanged: (value) {
+                  setState(() {
+                    _acceptPrivacyPolicy = value ?? false;
+                  });
+                },
+                activeColor: AppTheme.primary,
+              ),
+              Expanded(
+                child: GestureDetector(
+                  onTap: _showPrivacyPolicy,
+                  child: RichText(
+                    text: const TextSpan(
+                      text: 'Acepto el ',
+                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                      children: [
+                        TextSpan(
+                          text: 'Aviso de Privacidad Simplificado e Integral',
+                          style: TextStyle(
+                            color: AppTheme.primary,
+                            fontWeight: FontWeight.bold,
+                            decoration: TextDecoration.underline,
+                          ),
+                        ),
+                        TextSpan(
+                          text: ' para el tratamiento de mis datos.',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
               final isLoading = state is AuthLoading;
