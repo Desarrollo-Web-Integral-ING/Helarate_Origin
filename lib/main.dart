@@ -19,6 +19,7 @@ import 'presentation/blocs/dashboard/dashboard_event.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/auth/auth_event.dart';
 import 'presentation/blocs/auth/auth_state.dart';
+import 'presentation/widgets/perfil_dialog.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
@@ -274,6 +275,38 @@ class _MainNavigationState extends State<MainNavigation> {
                       Icons.bar_chart_outlined, 'Stats'),
                   const SizedBox(height: 8),
                 ],
+                GestureDetector(
+                  onTap: () {
+                    if (authState is Authenticated) {
+                      PerfilDialog.show(context, authState.user);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.account_circle_rounded,
+                          color: AppTheme.textPrimary,
+                          size: 22,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Mi Perfil / ARCO',
+                          style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Divider(height: 32, thickness: 1),
                 GestureDetector(
                   onTap: () {

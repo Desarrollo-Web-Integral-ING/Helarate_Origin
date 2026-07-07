@@ -10,6 +10,7 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/perfil_dialog.dart';
 import 'inventario_produccion_screen.dart';
 import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
@@ -156,6 +157,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                   if (MediaQuery.of(context).size.width < 800) ...[
                     const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.account_circle_rounded, color: Colors.white),
+                      tooltip: 'Mi Perfil / ARCO',
+                      onPressed: () {
+                        final authState = context.read<AuthBloc>().state;
+                        if (authState is Authenticated) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => PerfilDialog(perfil: authState.user),
+                          );
+                        }
+                      },
+                    ),
                     IconButton(
                       icon: const Icon(Icons.logout_rounded, color: Colors.white),
                       tooltip: 'Cerrar sesión',

@@ -10,6 +10,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AppStarted>(_onAppStarted);
     on<SignInRequested>(_onSignInRequested);
     on<SignOutRequested>(_onSignOutRequested);
+    on<DeleteAccountRequested>(_onDeleteAccountRequested);
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -61,6 +62,17 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(Unauthenticated());
     } catch (e) {
       emit(AuthFailure('No se pudo cerrar la sesión: $e'));
+    }
+  }
+
+  Future<void> _onDeleteAccountRequested(
+      DeleteAccountRequested event, Emitter<AuthState> emit) async {
+    emit(AuthLoading());
+    try {
+      await authRepository.deleteAccount();
+      emit(Unauthenticated());
+    } catch (e) {
+      emit(AuthFailure('No se pudo eliminar la cuenta: $e'));
     }
   }
 }
