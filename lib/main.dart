@@ -156,10 +156,13 @@ class _MainNavigationState extends State<MainNavigation> {
     final width = MediaQuery.of(context).size.width;
     final isLargeScreen = width >= 800;
 
+    final authState = context.watch<AuthBloc>().state;
+    final isEmployee = authState is Authenticated && authState.user.isEmployee;
+
     return Scaffold(
       body: Row(
         children: [
-          if (isLargeScreen) _buildWebSidebar(),
+          if (isLargeScreen) _buildWebSidebar(isEmployee),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
@@ -194,8 +197,9 @@ class _MainNavigationState extends State<MainNavigation> {
                           2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
                       _navItem(3, Icons.point_of_sale_rounded,
                           Icons.point_of_sale_outlined, 'Ventas'),
-                      _navItem(4, Icons.bar_chart_rounded,
-                          Icons.bar_chart_outlined, 'Stats'),
+                      if (!isEmployee)
+                        _navItem(4, Icons.bar_chart_rounded,
+                            Icons.bar_chart_outlined, 'Stats'),
                     ],
                   ),
                 ),
@@ -204,7 +208,7 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  Widget _buildWebSidebar() {
+  Widget _buildWebSidebar(bool isEmployee) {
     return Container(
       width: 250,
       decoration: BoxDecoration(
@@ -265,8 +269,11 @@ class _MainNavigationState extends State<MainNavigation> {
                 _sidebarItem(3, Icons.point_of_sale_rounded,
                     Icons.point_of_sale_outlined, 'Ventas'),
                 const SizedBox(height: 8),
-                _sidebarItem(4, Icons.bar_chart_rounded,
-                    Icons.bar_chart_outlined, 'Stats'),
+                if (!isEmployee) ...[
+                  _sidebarItem(4, Icons.bar_chart_rounded,
+                      Icons.bar_chart_outlined, 'Stats'),
+                  const SizedBox(height: 8),
+                ],
                 const Divider(height: 32, thickness: 1),
                 GestureDetector(
                   onTap: () {
