@@ -6,4 +6,5 @@ abstract class AuthRepository {
   Future<void> signOut();
   Future<UsuarioPerfil?> getCurrentUser();
   Stream<UsuarioPerfil?> get onAuthStateChanges;
+  Future<void> deleteAccount();
 }

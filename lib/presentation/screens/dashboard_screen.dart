@@ -10,6 +10,7 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
+import '../widgets/perfil_dialog.dart';
 import 'inventario_produccion_screen.dart';
 import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
@@ -157,6 +158,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   if (MediaQuery.of(context).size.width < 800) ...[
                     const Spacer(),
                     IconButton(
+                      icon: const Icon(Icons.account_circle_rounded, color: Colors.white),
+                      tooltip: 'Mi Perfil / ARCO',
+                      onPressed: () {
+                        final authState = context.read<AuthBloc>().state;
+                        if (authState is Authenticated) {
+                          showDialog(
+                            context: context,
+                            builder: (_) => PerfilDialog(perfil: authState.user),
+                          );
+                        }
+                      },
+                    ),
+                    IconButton(
                       icon: const Icon(Icons.logout_rounded, color: Colors.white),
                       tooltip: 'Cerrar sesión',
                       onPressed: () {
@@ -174,6 +188,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildStatsGrid() {
+    final authState = context.read<AuthBloc>().state;
+    final isEmployee = authState is Authenticated && authState.user.isEmployee;
+
+    if (isEmployee) {
+      return GridView.count(
+        crossAxisCount: 2,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        crossAxisSpacing: 14,
+        mainAxisSpacing: 14,
+        childAspectRatio: 1.3,
+        children: [
+          StatCard(
+            title: 'Productos en venta',
+            value: '${_productosVenta.length}',
+            subtitle: '$_stockBajoCount con stock bajo',
+            icon: Icons.icecream_rounded,
+            gradient: AppTheme.stockGradient,
+            onTap: () => _goTo(const InventarioVentaScreen()),
+          ),
+          StatCard(
+            title: 'Insumos activos',
+            value: '${_productosProduccion.length}',
+            subtitle: '$_insumosBajos con stock bajo',
+            icon: Icons.inventory_2_rounded,
+            gradient: AppTheme.productionGradient,
+            onTap: () => _goTo(const InventarioProduccionScreen()),
+          ),
+        ],
+      );
+    }
+
     return GridView.count(
       crossAxisCount: 2,
       shrinkWrap: true,
@@ -217,6 +263,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildQuickActions() {
+    final authState = context.read<AuthBloc>().state;
+    final isEmployee = authState is Authenticated && authState.user.isEmployee;
+
     final actions = [
       _QuickAction('Insumos', Icons.inventory_2_rounded, AppTheme.productionGradient,
           () => _goTo(const InventarioProduccionScreen())),
@@ -224,8 +273,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           () => _goTo(const InventarioVentaScreen())),
       _QuickAction('Ventas', Icons.point_of_sale_rounded, AppTheme.salesGradient,
           () => _goTo(const VentasScreen())),
-      _QuickAction('Stats', Icons.bar_chart_rounded, AppTheme.primaryGradient,
-          () => _goTo(const EstadisticasScreen())),
+      if (!isEmployee)
+        _QuickAction('Stats', Icons.bar_chart_rounded, AppTheme.primaryGradient,
+            () => _goTo(const EstadisticasScreen())),
     ];
 
     return Column(
