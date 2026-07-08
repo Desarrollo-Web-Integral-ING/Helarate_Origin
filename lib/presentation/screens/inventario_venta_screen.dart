@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -81,11 +83,32 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
 
-  Future<String?> _pickImage() async {
-    final result = await FilePicker.pickFiles(
-      type: FileType.image, allowMultiple: false,
-    );
-    return result?.files.single.path;
+  Future<PickedImageData?> _pickImage() async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      if (result == null || result.files.isEmpty) return null;
+      final file = result.files.first;
+
+      List<int>? bytes = file.bytes;
+      if (bytes == null && file.path != null) {
+        bytes = await File(file.path!).readAsBytes();
+      }
+
+      if (bytes == null) return null;
+
+      return PickedImageData(
+        name: file.name,
+        bytes: bytes,
+        extension: file.extension ?? 'png',
+        localPath: file.path,
+      );
+    } catch (e) {
+      print('Error al seleccionar imagen: $e');
+      return null;
+    }
   }
 
   @override
@@ -307,11 +330,32 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   }
 
   Widget _avatar(String? path, bool agotado, bool stockBajo) {
-    if (path != null && File(path).existsSync()) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Image.file(File(path), width: 48, height: 48, fit: BoxFit.cover),
-      );
+    if (path != null) {
+      if (path.startsWith('http')) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.network(
+            path,
+            width: 48,
+            height: 48,
+            fit: BoxFit.cover,
+            errorBuilder: (context, error, stackTrace) => Container(
+              width: 48, height: 48,
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: const Icon(Icons.broken_image_rounded, color: Colors.grey, size: 20),
+            ),
+          ),
+        );
+      }
+      if (!kIsWeb && File(path).existsSync()) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(14),
+          child: Image.file(File(path), width: 48, height: 48, fit: BoxFit.cover),
+        );
+      }
     }
     return Container(
       width: 48, height: 48,
@@ -419,6 +463,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     String tamano = _tamanos.contains(producto?.tamano) ? producto!.tamano! : _tamanos.first;
     String categoria = _tipos.contains(producto?.categoria) ? producto!.categoria : _tipos.first;
     String? imagenPath = producto?.imagenPath;
+    PickedImageData? selectedImage;
+    bool isSaving = false;
+    final formKey = GlobalKey<FormState>();
 
     showModalBottomSheet(
       context: context,
@@ -435,129 +482,246 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Center(child: Container(width: 40, height: 4,
-                    decoration: BoxDecoration(color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2)))),
-                const SizedBox(height: 16),
-                Text(isEdit ? 'Editar nieve' : 'Nueva nieve',
-                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-                        color: AppTheme.textPrimary)),
-                const SizedBox(height: 16),
-                // Imagen
-                GestureDetector(
-                  onTap: () async {
-                    final path = await _pickImage();
-                    if (path != null) setModal(() => imagenPath = path);
-                  },
-                  child: Container(
-                    height: 90,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF0F1FF),
-                      borderRadius: BorderRadius.circular(14),
-                      image: imagenPath != null
-                          ? DecorationImage(
-                              image: FileImage(File(imagenPath!)), fit: BoxFit.cover)
-                          : null,
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(child: Container(width: 40, height: 4,
+                      decoration: BoxDecoration(color: Colors.grey[300],
+                          borderRadius: BorderRadius.circular(2)))),
+                  const SizedBox(height: 16),
+                  Text(isEdit ? 'Editar nieve' : 'Nueva nieve',
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary)),
+                  const SizedBox(height: 16),
+                  // Imagen
+                  GestureDetector(
+                    onTap: () async {
+                      final picked = await _pickImage();
+                      if (picked != null) {
+                        setModal(() {
+                          selectedImage = picked;
+                          imagenPath = picked.name;
+                        });
+                      }
+                    },
+                    child: Container(
+                      height: 90,
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF0F1FF),
+                        borderRadius: BorderRadius.circular(14),
+                        image: selectedImage != null
+                            ? DecorationImage(
+                                image: MemoryImage(Uint8List.fromList(selectedImage!.bytes)),
+                                fit: BoxFit.cover,
+                              )
+                            : (imagenPath != null
+                                ? (imagenPath!.startsWith('http')
+                                    ? DecorationImage(image: NetworkImage(imagenPath!), fit: BoxFit.cover)
+                                    : (!kIsWeb
+                                        ? DecorationImage(image: FileImage(File(imagenPath!)), fit: BoxFit.cover)
+                                        : null))
+                                : null),
+                      ),
+                      child: (selectedImage == null && imagenPath == null)
+                          ? const Center(child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.add_photo_alternate_outlined,
+                                    color: AppTheme.textSecondary, size: 28),
+                                SizedBox(height: 4),
+                                Text('Agregar imagen (opcional)',
+                                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                              ]))
+                          : Align(
+                              alignment: Alignment.topRight,
+                              child: GestureDetector(
+                                onTap: () => setModal(() {
+                                  selectedImage = null;
+                                  imagenPath = null;
+                                }),
+                                child: Container(
+                                  margin: const EdgeInsets.all(6),
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                      color: Colors.black54, shape: BoxShape.circle),
+                                  child: const Icon(Icons.close, color: Colors.white, size: 14),
+                                ),
+                              )),
                     ),
-                    child: imagenPath == null
-                        ? const Center(child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(Icons.add_photo_alternate_outlined,
-                                  color: AppTheme.textSecondary, size: 28),
-                              SizedBox(height: 4),
-                              Text('Agregar imagen (opcional)',
-                                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
-                            ]))
-                        : Align(
-                            alignment: Alignment.topRight,
-                            child: GestureDetector(
-                              onTap: () => setModal(() => imagenPath = null),
-                              child: Container(
-                                margin: const EdgeInsets.all(6),
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                    color: Colors.black54, shape: BoxShape.circle),
-                                child: const Icon(Icons.close, color: Colors.white, size: 14),
-                              ),
-                            )),
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(controller: nombreCtrl,
-                    decoration: const InputDecoration(labelText: 'Nombre')),
-                const SizedBox(height: 10),
-                TextField(controller: saborCtrl,
-                    decoration: const InputDecoration(labelText: 'Sabor')),
-                const SizedBox(height: 10),
-                DropdownButtonFormField<String>(
-                  value: categoria,
-                  decoration: const InputDecoration(labelText: 'Tipo'),
-                  items: _tipos.map((t) =>
-                      DropdownMenuItem(value: t, child: Text(t))).toList(),
-                  onChanged: (v) => setModal(() => categoria = v!),
-                ),
-                if (categoria == 'Vaso') ...[
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: nombreCtrl,
+                    decoration: const InputDecoration(labelText: 'Nombre'),
+                    maxLength: 50,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Por favor ingresa el nombre de la nieve';
+                      }
+                      if (value.trim().length > 50) {
+                        return 'El nombre no puede superar los 50 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: saborCtrl,
+                    decoration: const InputDecoration(labelText: 'Sabor (Opcional)'),
+                    maxLength: 30,
+                    validator: (value) {
+                      if (value != null && value.trim().length > 30) {
+                        return 'El sabor no puede superar los 30 caracteres';
+                      }
+                      return null;
+                    },
+                  ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
-                    value: tamano,
-                    decoration: const InputDecoration(labelText: 'Tamaño'),
-                    items: _tamanos.map((t) =>
+                    value: categoria,
+                    decoration: const InputDecoration(labelText: 'Tipo'),
+                    items: _tipos.map((t) =>
                         DropdownMenuItem(value: t, child: Text(t))).toList(),
-                    onChanged: (v) => setModal(() => tamano = v!),
+                    onChanged: (v) => setModal(() => categoria = v!),
+                  ),
+                  if (categoria == 'Vaso') ...[
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<String>(
+                      value: tamano,
+                      decoration: const InputDecoration(labelText: 'Tamaño'),
+                      items: _tamanos.map((t) =>
+                          DropdownMenuItem(value: t, child: Text(t))).toList(),
+                      onChanged: (v) => setModal(() => tamano = v!),
+                    ),
+                  ],
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: precioCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(labelText: 'Precio de venta (\$)'),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Por favor ingresa el precio';
+                      }
+                      final val = double.tryParse(value);
+                      if (val == null) {
+                        return 'Número no válido';
+                      }
+                      if (val < 0) {
+                        return 'No puede ser menor a 0';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: stockCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Cantidad actual'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return null;
+                          final val = double.tryParse(value);
+                          if (val == null) {
+                            return 'Número no válido';
+                          }
+                          if (val < 0) {
+                            return 'No puede ser menor a 0';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: stockMinCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Mínimo'),
+                        validator: (value) {
+                          if (value == null || value.isEmpty) return null;
+                          final val = double.tryParse(value);
+                          if (val == null) {
+                            return 'Número no válido';
+                          }
+                          if (val < 0) {
+                            return 'No puede ser menor a 0';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: isSaving
+                          ? null
+                          : () async {
+                              if (!formKey.currentState!.validate()) return;
+
+                              setModal(() {
+                                isSaving = true;
+                              });
+
+                              String? finalImagenPath = imagenPath;
+
+                              if (selectedImage != null) {
+                                final repo = context.read<InventarioBloc>().insumoRepository;
+                                final uploadedUrl = await repo.uploadImage(
+                                  nombreCtrl.text.trim().replaceAll(' ', '_'),
+                                  selectedImage!.bytes,
+                                  selectedImage!.extension,
+                                );
+                                if (uploadedUrl != null) {
+                                  finalImagenPath = uploadedUrl;
+                                }
+                              }
+
+                              final p = Insumo(
+                                id: producto?.id ?? const Uuid().v4(),
+                                nombre: nombreCtrl.text.trim(),
+                                sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
+                                tamano: categoria == 'Vaso' ? tamano : null,
+                                precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
+                                stockActual: double.tryParse(stockCtrl.text) ?? 0.0,
+                                stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
+                                categoria: categoria,
+                                imagenPath: finalImagenPath,
+                                tipo: TipoInsumo.productoVenta,
+                                costoUnitario: 0.0,
+                                unidad: 'pzs',
+                                userId: producto?.userId,
+                                updatedAt: DateTime.now(),
+                              );
+
+                              if (isEdit) {
+                                context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
+                              } else {
+                                context.read<InventarioBloc>().add(AddInsumoEvent(p));
+                              }
+
+                              if (mounted) Navigator.pop(context);
+                            },
+                      child: isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                              ),
+                            )
+                          : Text(isEdit ? 'Guardar cambios' : 'Agregar'),
+                    ),
                   ),
                 ],
-                const SizedBox(height: 10),
-                TextField(controller: precioCtrl,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Precio de venta (\$)')),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(child: TextField(controller: stockCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Cantidad actual'))),
-                  const SizedBox(width: 10),
-                  Expanded(child: TextField(controller: stockMinCtrl,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Mínimo'))),
-                ]),
-                const SizedBox(height: 20),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (nombreCtrl.text.isEmpty) return;
-                      final p = Insumo(
-                        id: producto?.id ?? const Uuid().v4(),
-                        nombre: nombreCtrl.text.trim(),
-                        sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
-                        tamano: categoria == 'Vaso' ? tamano : null,
-                        precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
-                        stockActual: double.tryParse(stockCtrl.text) ?? 0.0,
-                        stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
-                        categoria: categoria,
-                        imagenPath: imagenPath,
-                        tipo: TipoInsumo.productoVenta,
-                        costoUnitario: 0.0,
-                        unidad: 'pzs',
-                        userId: producto?.userId,
-                        updatedAt: DateTime.now(),
-                      );
-                      if (isEdit) {
-                        context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
-                      } else {
-                        context.read<InventarioBloc>().add(AddInsumoEvent(p));
-                      }
-                      if (mounted) Navigator.pop(context);
-                    },
-                    child: Text(isEdit ? 'Guardar cambios' : 'Agregar'),
-                  ),
-                ),
-              ],
+              ),
             ),
           ),
         ),
@@ -586,4 +750,18 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
       ),
     );
   }
+}
+
+class PickedImageData {
+  final String name;
+  final List<int> bytes;
+  final String extension;
+  final String? localPath;
+
+  PickedImageData({
+    required this.name,
+    required this.bytes,
+    required this.extension,
+    this.localPath,
+  });
 }

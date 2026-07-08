@@ -94,4 +94,16 @@ class SupabaseAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     await _client.auth.signOut();
   }
+
+  @override
+  Future<void> deleteAccount() async {
+    final user = _client.auth.currentUser;
+    if (user == null) return;
+    try {
+      await _client.from('profiles').delete().eq('id', user.id);
+    } catch (e) {
+      print('Error al borrar perfil: $e');
+    }
+    await signOut();
+  }
 }
