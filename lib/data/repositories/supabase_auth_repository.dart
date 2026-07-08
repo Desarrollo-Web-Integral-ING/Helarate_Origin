@@ -68,6 +68,16 @@ class SupabaseAuthRepository implements AuthRepository {
       password: password,
     );
     if (response.user == null) return null;
+
+    try {
+      await _client
+          .from('profiles')
+          .update({'aceptado_aviso_at': DateTime.now().toIso8601String()})
+          .eq('id', response.user!.id);
+    } catch (e) {
+      print('Error al actualizar fecha de aceptación de aviso en inicio de sesión: $e');
+    }
+
     return await _getUserProfile(response.user!.id);
   }
 
@@ -87,6 +97,16 @@ class SupabaseAuthRepository implements AuthRepository {
       },
     );
     if (response.user == null) return null;
+
+    try {
+      await _client
+          .from('profiles')
+          .update({'aceptado_aviso_at': DateTime.now().toIso8601String()})
+          .eq('id', response.user!.id);
+    } catch (e) {
+      print('Error al registrar fecha de aceptación de aviso en registro: $e');
+    }
+
     return await _getUserProfile(response.user!.id);
   }
 

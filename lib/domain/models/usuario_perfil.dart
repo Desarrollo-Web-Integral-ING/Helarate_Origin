@@ -3,12 +3,14 @@ class UsuarioPerfil {
   final String nombre;
   final String rol; // 'dueño' o 'empleado'
   final DateTime createdAt;
+  final DateTime? aceptadoAvisoAt;
 
   UsuarioPerfil({
     required this.id,
     required this.nombre,
     required this.rol,
     required this.createdAt,
+    this.aceptadoAvisoAt,
   });
 
   bool get isOwner => rol == 'dueño';
@@ -19,6 +21,7 @@ class UsuarioPerfil {
         'nombre': nombre,
         'rol': rol,
         'created_at': createdAt.toIso8601String(),
+        'aceptado_aviso_at': aceptadoAvisoAt?.toIso8601String(),
       };
 
   factory UsuarioPerfil.fromJson(Map<String, dynamic> json) {
@@ -27,6 +30,9 @@ class UsuarioPerfil {
       nombre: json['nombre'] as String? ?? 'Usuario Nuevo',
       rol: json['rol'] as String? ?? 'empleado',
       createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
+      aceptadoAvisoAt: json['aceptado_aviso_at'] != null 
+          ? DateTime.parse(json['aceptado_aviso_at'] as String) 
+          : null,
     );
   }
 }
