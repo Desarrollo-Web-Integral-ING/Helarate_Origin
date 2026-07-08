@@ -158,7 +158,7 @@ class _MainNavigationState extends State<MainNavigation> {
     final isLargeScreen = width >= 800;
 
     final authState = context.watch<AuthBloc>().state;
-    final isEmployee = authState is Authenticated && authState.user.isEmployee;
+    final isEmployee = authState is Authenticated && authState.usuario.isEmployee;
 
     return Scaffold(
       body: Row(
@@ -210,6 +210,7 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   Widget _buildWebSidebar(bool isEmployee) {
+    final authState = context.read<AuthBloc>().state;
     return Container(
       width: 250,
       decoration: BoxDecoration(
@@ -278,7 +279,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 GestureDetector(
                   onTap: () {
                     if (authState is Authenticated) {
-                      PerfilDialog.show(context, authState.user);
+                      PerfilDialog.show(context, authState.usuario);
                     }
                   },
                   child: Container(

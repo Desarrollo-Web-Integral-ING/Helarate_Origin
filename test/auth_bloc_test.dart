@@ -38,6 +38,11 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> signOut() async {
     mockUser = null;
   }
+
+  @override
+  Future<void> deleteAccount() async {
+    mockUser = null;
+  }
 }
 
 void main() {

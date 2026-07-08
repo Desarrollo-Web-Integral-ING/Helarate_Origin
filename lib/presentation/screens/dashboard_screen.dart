@@ -8,6 +8,7 @@ import '../blocs/dashboard/dashboard_state.dart';
 import '../blocs/dashboard/dashboard_event.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
+import '../blocs/auth/auth_state.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
 import '../widgets/perfil_dialog.dart';
@@ -165,7 +166,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (authState is Authenticated) {
                           showDialog(
                             context: context,
-                            builder: (_) => PerfilDialog(perfil: authState.user),
+                            builder: (_) => PerfilDialog(perfil: authState.usuario),
                           );
                         }
                       },
@@ -189,7 +190,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildStatsGrid() {
     final authState = context.read<AuthBloc>().state;
-    final isEmployee = authState is Authenticated && authState.user.isEmployee;
+    final isEmployee = authState is Authenticated && authState.usuario.isEmployee;
 
     if (isEmployee) {
       return GridView.count(
@@ -264,7 +265,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildQuickActions() {
     final authState = context.read<AuthBloc>().state;
-    final isEmployee = authState is Authenticated && authState.user.isEmployee;
+    final isEmployee = authState is Authenticated && authState.usuario.isEmployee;
 
     final actions = [
       _QuickAction('Insumos', Icons.inventory_2_rounded, AppTheme.productionGradient,
