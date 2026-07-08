@@ -19,6 +19,7 @@ import 'presentation/blocs/dashboard/dashboard_event.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/auth/auth_event.dart';
 import 'presentation/blocs/auth/auth_state.dart';
+import 'presentation/widgets/perfil_dialog.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
@@ -156,10 +157,13 @@ class _MainNavigationState extends State<MainNavigation> {
     final width = MediaQuery.of(context).size.width;
     final isLargeScreen = width >= 800;
 
+    final authState = context.watch<AuthBloc>().state;
+    final isEmployee = authState is Authenticated && authState.usuario.isEmployee;
+
     return Scaffold(
       body: Row(
         children: [
-          if (isLargeScreen) _buildWebSidebar(),
+          if (isLargeScreen) _buildWebSidebar(isEmployee),
           Expanded(
             child: IndexedStack(
               index: _currentIndex,
@@ -194,8 +198,9 @@ class _MainNavigationState extends State<MainNavigation> {
                           2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
                       _navItem(3, Icons.point_of_sale_rounded,
                           Icons.point_of_sale_outlined, 'Ventas'),
-                      _navItem(4, Icons.bar_chart_rounded,
-                          Icons.bar_chart_outlined, 'Stats'),
+                      if (!isEmployee)
+                        _navItem(4, Icons.bar_chart_rounded,
+                            Icons.bar_chart_outlined, 'Stats'),
                     ],
                   ),
                 ),
@@ -204,7 +209,8 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  Widget _buildWebSidebar() {
+  Widget _buildWebSidebar(bool isEmployee) {
+    final authState = context.read<AuthBloc>().state;
     return Container(
       width: 250,
       decoration: BoxDecoration(
@@ -265,8 +271,43 @@ class _MainNavigationState extends State<MainNavigation> {
                 _sidebarItem(3, Icons.point_of_sale_rounded,
                     Icons.point_of_sale_outlined, 'Ventas'),
                 const SizedBox(height: 8),
-                _sidebarItem(4, Icons.bar_chart_rounded,
-                    Icons.bar_chart_outlined, 'Stats'),
+                if (!isEmployee) ...[
+                  _sidebarItem(4, Icons.bar_chart_rounded,
+                      Icons.bar_chart_outlined, 'Stats'),
+                  const SizedBox(height: 8),
+                ],
+                GestureDetector(
+                  onTap: () {
+                    if (authState is Authenticated) {
+                      PerfilDialog.show(context, authState.usuario);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(
+                          Icons.account_circle_rounded,
+                          color: AppTheme.textPrimary,
+                          size: 22,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Mi Perfil / ARCO',
+                          style: TextStyle(
+                            color: AppTheme.textPrimary,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Divider(height: 32, thickness: 1),
                 GestureDetector(
                   onTap: () {
