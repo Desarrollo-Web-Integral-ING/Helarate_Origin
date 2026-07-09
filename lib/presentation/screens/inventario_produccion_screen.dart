@@ -84,6 +84,7 @@ class _InventarioProduccionScreenState
       final result = await FilePicker.pickFiles(
         type: FileType.image,
         allowMultiple: false,
+        withData: true,
       );
       if (result == null || result.files.isEmpty) return null;
       final file = result.files.first;
