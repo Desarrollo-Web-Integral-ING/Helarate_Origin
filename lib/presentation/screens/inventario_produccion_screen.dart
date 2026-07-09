@@ -75,6 +75,7 @@ class _InventarioProduccionScreenState
       precioVenta: p.precioVenta,
       userId: p.userId,
       updatedAt: DateTime.now(),
+      imagenPath: p.imagenPath,
     );
     context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
@@ -479,6 +480,7 @@ class _InventarioProduccionScreenState
                 precioVenta: p.precioVenta,
                 userId: p.userId,
                 updatedAt: DateTime.now(),
+                imagenPath: p.imagenPath,
               );
               context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
               if (mounted) Navigator.pop(context);
