@@ -85,7 +85,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
 
   Future<PickedImageData?> _pickImage() async {
     try {
-      final result = await FilePicker.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
@@ -271,7 +271,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
         children: [
           ListTile(
             contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            leading: _avatar(p.imagenPath, agotado, p.stockBajo),
+            leading: _avatar(context, p.imagenPath, p.nombre, agotado, p.stockBajo),
             title: Text(p.nombre, style: const TextStyle(
                 fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.textPrimary)),
             subtitle: Text(
@@ -329,10 +329,61 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  Widget _avatar(String? path, bool agotado, bool stockBajo) {
+  void _showFullImage(BuildContext context, String? path, String title) {
+    if (path == null) return;
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Align(
+              alignment: Alignment.topRight,
+              child: IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.white, size: 30),
+                onPressed: () => Navigator.pop(context),
+              ),
+            ),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.7,
+                maxWidth: MediaQuery.of(context).size.width * 0.9,
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(16),
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  boundaryMargin: const EdgeInsets.all(20),
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: path.startsWith('http')
+                      ? Image.network(path, fit: BoxFit.contain)
+                      : Image.file(File(path), fit: BoxFit.contain),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              title,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _avatar(BuildContext context, String? path, String nombre, bool agotado, bool stockBajo) {
+    Widget avatarWidget;
     if (path != null) {
       if (path.startsWith('http')) {
-        return ClipRRect(
+        avatarWidget = ClipRRect(
           borderRadius: BorderRadius.circular(14),
           child: Image.network(
             path,
@@ -349,25 +400,45 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
             ),
           ),
         );
-      }
-      if (!kIsWeb && File(path).existsSync()) {
-        return ClipRRect(
+      } else if (!kIsWeb && File(path).existsSync()) {
+        avatarWidget = ClipRRect(
           borderRadius: BorderRadius.circular(14),
           child: Image.file(File(path), width: 48, height: 48, fit: BoxFit.cover),
         );
+      } else {
+        avatarWidget = Container(
+          width: 48, height: 48,
+          decoration: BoxDecoration(
+            gradient: agotado
+                ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFEF9A9A)])
+                : stockBajo ? AppTheme.salesGradient : AppTheme.stockGradient,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Icon(agotado ? Icons.warning_rounded : Icons.icecream_rounded,
+              color: Colors.white, size: 22),
+        );
       }
+    } else {
+      avatarWidget = Container(
+        width: 48, height: 48,
+        decoration: BoxDecoration(
+          gradient: agotado
+              ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFEF9A9A)])
+              : stockBajo ? AppTheme.salesGradient : AppTheme.stockGradient,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(agotado ? Icons.warning_rounded : Icons.icecream_rounded,
+            color: Colors.white, size: 22),
+      );
     }
-    return Container(
-      width: 48, height: 48,
-      decoration: BoxDecoration(
-        gradient: agotado
-            ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFEF9A9A)])
-            : stockBajo ? AppTheme.salesGradient : AppTheme.stockGradient,
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Icon(agotado ? Icons.warning_rounded : Icons.icecream_rounded,
-          color: Colors.white, size: 22),
-    );
+
+    if (path != null) {
+      return GestureDetector(
+        onTap: () => _showFullImage(context, path, nombre),
+        child: avatarWidget,
+      );
+    }
+    return avatarWidget;
   }
 
   Widget _stockChip(Insumo p) {
