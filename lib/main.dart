@@ -308,48 +308,51 @@ class _MainNavigationState extends State<MainNavigation> {
               onTap: () {
                 PerfilDialog.show(context, user);
               },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                child: Row(
-                  mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
-                  children: [
-                    CircleAvatar(
-                      radius: 20,
-                      backgroundColor: AppTheme.primary,
-                      child: Text(
-                        initials,
-                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    if (!_isSidebarCollapsed) ...[
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              user.nombre,
-                              style: const TextStyle(
-                                color: AppTheme.textPrimary,
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            Text(
-                              user.rol.toUpperCase(),
-                              style: TextStyle(
-                                color: user.isEmployee ? Colors.blue : Colors.purple,
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+              child: Tooltip(
+                message: _isSidebarCollapsed ? '${user.nombre} (${user.rol.toUpperCase()})' : '',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.primary,
+                        child: Text(
+                          initials,
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                         ),
                       ),
+                      if (!_isSidebarCollapsed) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                user.nombre,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                user.rol.toUpperCase(),
+                                style: TextStyle(
+                                  color: user.isEmployee ? Colors.blue : Colors.purple,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),
@@ -358,36 +361,39 @@ class _MainNavigationState extends State<MainNavigation> {
             // Logout row at the very bottom
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: GestureDetector(
-                onTap: () {
-                  context.read<AuthBloc>().add(SignOutRequested());
-                },
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  decoration: BoxDecoration(
-                    color: Colors.red[50],
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.logout_rounded,
-                        color: Colors.red,
-                        size: 20,
-                      ),
-                      if (!_isSidebarCollapsed) ...[
-                        const SizedBox(width: 12),
-                        const Text(
-                          'Cerrar Sesión',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                          ),
+              child: Tooltip(
+                message: _isSidebarCollapsed ? 'Cerrar Sesión' : '',
+                child: GestureDetector(
+                  onTap: () {
+                    context.read<AuthBloc>().add(SignOutRequested());
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.logout_rounded,
+                          color: Colors.red,
+                          size: 20,
                         ),
+                        if (!_isSidebarCollapsed) ...[
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Cerrar Sesión',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),

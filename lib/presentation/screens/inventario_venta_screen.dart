@@ -445,19 +445,32 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   Widget _stockChip(Insumo p) {
     final agotado = p.stockActual == 0;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: agotado ? const Color(0xFFFFEBEE)
             : p.stockBajo ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        agotado ? '🔴 Agotado' : p.stockBajo ? '⚠️ Bajo' : '✓ OK',
-        style: TextStyle(
-          fontSize: 10, fontWeight: FontWeight.w600,
-          color: agotado ? const Color(0xFFC62828)
-              : p.stockBajo ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            agotado ? Icons.cancel_rounded
+                : p.stockBajo ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+            color: agotado ? const Color(0xFFC62828)
+                : p.stockBajo ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+            size: 13,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            agotado ? 'Agotado' : p.stockBajo ? 'Bajo' : 'OK',
+            style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w700,
+              color: agotado ? const Color(0xFFC62828)
+                  : p.stockBajo ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+            ),
+          ),
+        ],
       ),
     );
   }

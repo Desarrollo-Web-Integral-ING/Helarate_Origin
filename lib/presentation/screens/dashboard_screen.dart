@@ -332,7 +332,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       children: [
         if (_nievesAgotadas > 0)
           _alertaBanner(
-            '🍧',
+            Icons.icecream_rounded,
             '$_nievesAgotadas sabor(es) de nieve agotado(s)',
             'Revisar',
             const Color(0xFFE3F2FD),
@@ -343,7 +343,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 8),
         if (_insumosAgotados > 0)
           _alertaBanner(
-            '📦',
+            Icons.inventory_2_rounded,
             '$_insumosAgotados insumo(s) agotado(s) — necesitas reponerlos',
             'Ver',
             const Color(0xFFFFEBEE),
@@ -354,7 +354,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 8),
         if (_insumosBajos > 0)
           _alertaBanner(
-            '⚠️',
+            Icons.warning_amber_rounded,
             '$_insumosBajos insumo(s) por debajo del mínimo',
             'Ver',
             const Color(0xFFFFF3E0),
@@ -365,7 +365,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  Widget _alertaBanner(String emoji, String msg, String accion, Color bg,
+  Widget _alertaBanner(IconData icon, String msg, String accion, Color bg,
       Color textColor, VoidCallback onTap) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -376,7 +376,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
       child: Row(
         children: [
-          Text(emoji, style: const TextStyle(fontSize: 20)),
+          Icon(icon, color: textColor, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Text(msg,

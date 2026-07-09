@@ -100,7 +100,13 @@ class PerfilDialog extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Confirmar Cancelación de Cuenta'),
+        title: Row(
+          children: const [
+            Icon(Icons.warning_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Confirmar Cancelación'),
+          ],
+        ),
         content: const Text(
           '¿Estás seguro de que deseas ejercer tu Derecho de Cancelación (ARCO)?\n\n'
           'Esta acción eliminará de forma irreversible tu perfil de usuario y todos tus registros de insumos y ventas de la base de datos de manera segura.',

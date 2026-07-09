@@ -131,7 +131,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Text('📊', style: TextStyle(fontSize: 56)),
+          Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
           SizedBox(height: 16),
           Text('Sin datos aún',
               style: TextStyle(

@@ -201,7 +201,7 @@ class _InventarioProduccionScreenState
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('📦', style: TextStyle(fontSize: 48)),
+            Icon(Icons.inventory_2_outlined, size: 56, color: Colors.grey[300]),
             const SizedBox(height: 12),
             const Text('Sin insumos registrados',
                 style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
@@ -416,22 +416,37 @@ class _InventarioProduccionScreenState
     return avatarWidget;
   }
 
-  Widget _statusChip(bool agotado, bool stockBajo) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(
-      color: agotado ? const Color(0xFFFFEBEE)
-          : stockBajo ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
-      borderRadius: BorderRadius.circular(6),
-    ),
-    child: Text(
-      agotado ? '🔴 Agotado' : stockBajo ? '⚠️ Bajo' : '✓ OK',
-      style: TextStyle(
-        fontSize: 10, fontWeight: FontWeight.w600,
-        color: agotado ? const Color(0xFFC62828)
-            : stockBajo ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+  Widget _statusChip(bool agotado, bool stockBajo) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: agotado ? const Color(0xFFFFEBEE)
+            : stockBajo ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+        borderRadius: BorderRadius.circular(8),
       ),
-    ),
-  );
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            agotado ? Icons.cancel_rounded
+                : stockBajo ? Icons.warning_amber_rounded : Icons.check_circle_rounded,
+            color: agotado ? const Color(0xFFC62828)
+                : stockBajo ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+            size: 13,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            agotado ? 'Agotado' : stockBajo ? 'Bajo' : 'OK',
+            style: TextStyle(
+              fontSize: 10, fontWeight: FontWeight.w700,
+              color: agotado ? const Color(0xFFC62828)
+                  : stockBajo ? const Color(0xFFE65100) : const Color(0xFF2E7D32),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   Widget _qBtn(IconData icon, VoidCallback onTap, bool disabled, {Color? color}) {
     return GestureDetector(
