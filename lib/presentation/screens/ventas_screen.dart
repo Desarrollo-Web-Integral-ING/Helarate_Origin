@@ -237,7 +237,7 @@ class _VentasScreenState extends State<VentasScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Text('🛒', style: TextStyle(fontSize: 48)),
+            Icon(Icons.shopping_cart_outlined, size: 56, color: Colors.grey[300]),
             const SizedBox(height: 12),
             Text(
               _productos.isEmpty

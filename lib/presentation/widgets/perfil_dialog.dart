@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../domain/models/usuario_perfil.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class PerfilDialog extends StatelessWidget {
   final UsuarioPerfil perfil;
@@ -19,7 +20,7 @@ class PerfilDialog extends StatelessWidget {
     );
   }
 
-  void _exportarDatos(BuildContext context) {
+  void _exportarDatos(BuildContext context) async {
     final Map<String, dynamic> data = {
       'tipo_solicitud': 'Derecho de Acceso (ARCO)',
       'fecha_solicitud': DateTime.now().toIso8601String(),
@@ -39,6 +40,23 @@ class PerfilDialog extends StatelessWidget {
       ),
     );
 
+    try {
+      final client = Supabase.instance.client;
+      final userId = client.auth.currentUser?.id;
+      if (userId != null) {
+        await client.from('audit_logs').insert({
+          'user_id': userId,
+          'action': 'ARCO_ACCESS',
+          'table_name': 'profiles',
+          'record_id': userId,
+          'descripcion': 'Ejercicio de Derecho ARCO: Acceso y exportación de datos personales del usuario en formato JSON.',
+        });
+      }
+    } catch (e) {
+      print('Error al guardar log de acceso en auditoría: $e');
+    }
+
+    if (!context.mounted) return;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -82,7 +100,13 @@ class PerfilDialog extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('⚠️ Confirmar Cancelación de Cuenta'),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: Colors.redAccent),
+            SizedBox(width: 8),
+            Text('Confirmar Cancelación'),
+          ],
+        ),
         content: const Text(
           '¿Estás seguro de que deseas ejercer tu Derecho de Cancelación (ARCO)?\n\n'
           'Esta acción eliminará de forma irreversible tu perfil de usuario y todos tus registros de insumos y ventas de la base de datos de manera segura.',

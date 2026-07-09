@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
@@ -20,6 +21,27 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _acceptPrivacyPolicy = false;
 
   @override
+  void initState() {
+    super.initState();
+    _loadPrivacyStatus();
+  }
+
+  Future<void> _loadPrivacyStatus() async {
+    final prefs = await SharedPreferences.getInstance();
+    setState(() {
+      _acceptPrivacyPolicy = prefs.getBool('privacy_policy_accepted') ?? false;
+    });
+  }
+
+  Future<void> _savePrivacyStatus(bool accepted) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('privacy_policy_accepted', accepted);
+    setState(() {
+      _acceptPrivacyPolicy = accepted;
+    });
+  }
+
+  @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
@@ -27,42 +49,28 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _submitForm() {
-    if (!_acceptPrivacyPolicy) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: const [
-              Icon(Icons.warning_amber_rounded, color: Colors.white),
-              SizedBox(width: 8),
-              Expanded(child: Text('Debes aceptar el Aviso de Privacidad para iniciar sesión.')),
-            ],
-          ),
-          backgroundColor: AppTheme.secondary,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      );
-      return;
-    }
     if (_formKey.currentState!.validate()) {
-      context.read<AuthBloc>().add(
-            SignInRequested(
-              email: _emailController.text.trim(),
-              password: _passwordController.text,
-            ),
-          );
+      if (!_acceptPrivacyPolicy) {
+        _showPrivacyPolicyModal();
+      } else {
+        context.read<AuthBloc>().add(
+              SignInRequested(
+                email: _emailController.text.trim(),
+                password: _passwordController.text,
+              ),
+            );
+      }
     }
   }
 
-  void _showPrivacyPolicy() {
+  void _showPrivacyPolicyModal() {
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
             SizedBox(width: 10),
             Text(
@@ -71,13 +79,13 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
-        content: SizedBox(
+        content: const SizedBox(
           width: 500,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Text(
                   'AVISO DE PRIVACIDAD SIMPLIFICADO',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
@@ -107,8 +115,29 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cerrar', style: TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+            onPressed: () {
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Debes aceptar el Aviso de Privacidad para poder utilizar el sistema.'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+            },
+            child: const Text('Rechazar', style: TextStyle(color: Colors.red)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _savePrivacyStatus(true);
+              _submitForm();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            child: const Text('Aceptar y continuar'),
           ),
         ],
       ),
@@ -360,45 +389,7 @@ class _LoginScreenState extends State<LoginScreen> {
               return null;
             },
           ),
-          const SizedBox(height: 16),
-          Row(
-            children: [
-              Checkbox(
-                value: _acceptPrivacyPolicy,
-                onChanged: (value) {
-                  setState(() {
-                    _acceptPrivacyPolicy = value ?? false;
-                  });
-                },
-                activeColor: AppTheme.primary,
-              ),
-              Expanded(
-                child: GestureDetector(
-                  onTap: _showPrivacyPolicy,
-                  child: RichText(
-                    text: const TextSpan(
-                      text: 'Acepto el ',
-                      style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
-                      children: [
-                        TextSpan(
-                          text: 'Aviso de Privacidad Simplificado e Integral',
-                          style: TextStyle(
-                            color: AppTheme.primary,
-                            fontWeight: FontWeight.bold,
-                            decoration: TextDecoration.underline,
-                          ),
-                        ),
-                        TextSpan(
-                          text: ' para el tratamiento de mis datos.',
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 24),
           BlocBuilder<AuthBloc, AuthState>(
             builder: (context, state) {
               final isLoading = state is AuthLoading;

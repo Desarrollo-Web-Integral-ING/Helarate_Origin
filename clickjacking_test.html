@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Prueba de Clickjacking - Helarate</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f6f9;
+            color: #333;
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #d9534f;
+            border-bottom: 2px solid #d9534f;
+            padding-bottom: 10px;
+        }
+        p {
+            line-height: 1.6;
+        }
+        .instruction-box {
+            background-color: #eef1f6;
+            border-left: 5px solid #337ab7;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .iframe-container {
+            border: 3px dashed #d9534f;
+            padding: 10px;
+            background: #fff;
+            margin-top: 20px;
+            text-align: center;
+        }
+        iframe {
+            border: 1px solid #ccc;
+            background-color: #eee;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Prueba de Vulnerabilidad: Clickjacking (Inyección por iframe)</h1>
+    
+    <p>Este archivo simula un sitio web atacante malicioso que intenta incrustar la aplicación <strong>Helarate</strong> dentro de un <code>iframe</code> para realizar un ataque de Clickjacking.</p>
+    
+    <div class="instruction-box">
+        <h3>Pasos para obtener la evidencia:</h3>
+        <ol>
+            <li>Abre este archivo HTML en tu navegador Google Chrome.</li>
+            <li>Presiona la tecla <strong>F12</strong> (o haz clic derecho y selecciona <em>Inspeccionar</em>) y ve a la pestaña <strong>Console (Consola)</strong>.</li>
+            <li>Comprueba que el iframe de abajo se muestre completamente en gris/blanco y que no cargue la aplicación.</li>
+            <li>En la consola de F12 deberás ver un mensaje de error en color rojo de tipo:
+                <br>
+                <code style="color: red; font-weight: bold; background: #fff; padding: 2px 5px; display: inline-block; margin-top: 5px;">
+                    Refused to display 'https://helarate-origin.vercel.app' in a frame because it set 'Content-Security-Policy' to 'frame-ancestors 'self''.
+                </code>
+            </li>
+            <li>Toma una captura de pantalla completa de tu navegador que muestre el iframe bloqueado y el error en la consola de Chrome.</li>
+        </ol>
+    </div>
+
+    <div class="iframe-container">
+        <h3>Iframe de Prueba (Apuntando a la app en Vercel)</h3>
+        <!-- Apuntando al URL de la app en Vercel -->
+        <iframe src="https://helarate-origin.vercel.app" width="100%" height="500px"></iframe>
+    </div>
+
+</body>
+</html>

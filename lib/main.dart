@@ -123,6 +123,7 @@ class MainNavigation extends StatefulWidget {
 
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
+  bool _isSidebarCollapsed = false;
 
   final _keys = [
     GlobalKey(),
@@ -211,8 +212,15 @@ class _MainNavigationState extends State<MainNavigation> {
 
   Widget _buildWebSidebar(bool isEmployee) {
     final authState = context.read<AuthBloc>().state;
-    return Container(
-      width: 250,
+    final user = authState is Authenticated ? authState.usuario : null;
+    final initials = user == null || user.nombre.trim().isEmpty
+        ? 'UN'
+        : user.nombre.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase();
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      curve: Curves.easeInOut,
+      width: _isSidebarCollapsed ? 80 : 260,
       decoration: BoxDecoration(
         color: Colors.white,
         boxShadow: [
@@ -226,131 +234,172 @@ class _MainNavigationState extends State<MainNavigation> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Logo & Collapse Icon Toggle Header
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 28),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Row(
+              mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
               children: [
-                ShaderMask(
-                  shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
-                  child: const Icon(
-                    Icons.icecream_rounded,
-                    color: Colors.white,
-                    size: 32,
+                if (!_isSidebarCollapsed) ...[
+                  Row(
+                    children: [
+                      ShaderMask(
+                        shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
+                        child: const Icon(
+                          Icons.icecream_rounded,
+                          color: Colors.white,
+                          size: 28,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      const Text(
+                        'Helarate',
+                        style: TextStyle(
+                          color: AppTheme.textPrimary,
+                          fontSize: 20,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 12),
-                const Text(
-                  'Helarate',
-                  style: TextStyle(
-                    color: AppTheme.textPrimary,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 0.5,
+                  IconButton(
+                    icon: const Icon(Icons.chevron_left_rounded, color: AppTheme.textSecondary),
+                    onPressed: () => setState(() => _isSidebarCollapsed = true),
                   ),
-                ),
-                const Text(
-                  ' 🍦',
-                  style: TextStyle(fontSize: 18),
-                ),
+                ] else ...[
+                  IconButton(
+                    icon: const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary),
+                    onPressed: () => setState(() => _isSidebarCollapsed = false),
+                  ),
+                ],
               ],
             ),
           ),
           const SizedBox(height: 10),
+
+          // Menu navigation items
           Expanded(
             child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
               children: [
-                _sidebarItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+                _sidebarItem(0, Icons.grid_view_rounded, Icons.grid_view_outlined, 'Inicio'),
                 const SizedBox(height: 8),
-                _sidebarItem(1, Icons.inventory_2_rounded,
-                    Icons.inventory_2_outlined, 'Insumos'),
+                _sidebarItem(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Insumos'),
                 const SizedBox(height: 8),
-                _sidebarItem(
-                    2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
+                _sidebarItem(2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
                 const SizedBox(height: 8),
-                _sidebarItem(3, Icons.point_of_sale_rounded,
-                    Icons.point_of_sale_outlined, 'Ventas'),
+                _sidebarItem(3, Icons.point_of_sale_rounded, Icons.point_of_sale_outlined, 'Ventas'),
                 const SizedBox(height: 8),
                 if (!isEmployee) ...[
-                  _sidebarItem(4, Icons.bar_chart_rounded,
-                      Icons.bar_chart_outlined, 'Stats'),
+                  _sidebarItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
                   const SizedBox(height: 8),
                 ],
-                GestureDetector(
-                  onTap: () {
-                    if (authState is Authenticated) {
-                      PerfilDialog.show(context, authState.usuario);
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(
-                          Icons.account_circle_rounded,
-                          color: AppTheme.textPrimary,
-                          size: 22,
+              ],
+            ),
+          ),
+
+          // Spacer & profile/logout footers
+          if (user != null) ...[
+            const Divider(height: 1, thickness: 1),
+            const SizedBox(height: 8),
+            // Profile display section (clickable to show old dialog)
+            GestureDetector(
+              onTap: () {
+                PerfilDialog.show(context, user);
+              },
+              child: Tooltip(
+                message: _isSidebarCollapsed ? '${user.nombre} (${user.rol.toUpperCase()})' : '',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        radius: 20,
+                        backgroundColor: AppTheme.primary,
+                        child: Text(
+                          initials,
+                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
                         ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Mi Perfil / ARCO',
-                          style: TextStyle(
-                            color: AppTheme.textPrimary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                      ),
+                      if (!_isSidebarCollapsed) ...[
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                user.nombre,
+                                style: const TextStyle(
+                                  color: AppTheme.textPrimary,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              Text(
+                                user.rol.toUpperCase(),
+                                style: TextStyle(
+                                  color: user.isEmployee ? Colors.blue : Colors.purple,
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
-                    ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Divider(height: 32, thickness: 1),
-                GestureDetector(
+              ),
+            ),
+            const SizedBox(height: 4),
+
+            // Logout row at the very bottom
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              child: Tooltip(
+                message: _isSidebarCollapsed ? 'Cerrar Sesión' : '',
+                child: GestureDetector(
                   onTap: () {
                     context.read<AuthBloc>().add(SignOutRequested());
                   },
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
+                      color: Colors.red[50],
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: const Row(
+                    child: Row(
+                      mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
                       children: [
-                        Icon(
+                        const Icon(
                           Icons.logout_rounded,
-                          color: AppTheme.secondary,
-                          size: 22,
+                          color: Colors.red,
+                          size: 20,
                         ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Cerrar Sesión',
-                          style: TextStyle(
-                            color: AppTheme.secondary,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
+                        if (!_isSidebarCollapsed) ...[
+                          const SizedBox(width: 12),
+                          const Text(
+                            'Cerrar Sesión',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
+                        ],
                       ],
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-          const Padding(
-            padding: EdgeInsets.all(24),
-            child: Text(
-              'v1.0.0',
-              style: TextStyle(
-                color: AppTheme.textSecondary,
-                fontSize: 12,
               ),
             ),
-          ),
+          ],
+          const SizedBox(height: 12),
         ],
       ),
     );
@@ -359,23 +408,23 @@ class _MainNavigationState extends State<MainNavigation> {
   Widget _sidebarItem(
       int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final isActive = _currentIndex == index;
-    return GestureDetector(
-      onTap: () => _onTabTap(index),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          gradient: isActive ? AppTheme.primaryGradient : null,
-          color: isActive ? null : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isActive ? activeIcon : inactiveIcon,
-              color: isActive ? Colors.white : AppTheme.textSecondary,
-              size: 22,
-            ),
+    final itemContent = AnimatedContainer(
+      duration: const Duration(milliseconds: 200),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        gradient: isActive ? AppTheme.primaryGradient : null,
+        color: isActive ? null : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+        children: [
+          Icon(
+            isActive ? activeIcon : inactiveIcon,
+            color: isActive ? Colors.white : AppTheme.textSecondary,
+            size: 22,
+          ),
+          if (!_isSidebarCollapsed) ...[
             const SizedBox(width: 12),
             Text(
               label,
@@ -386,7 +435,15 @@ class _MainNavigationState extends State<MainNavigation> {
               ),
             ),
           ],
-        ),
+        ],
+      ),
+    );
+
+    return Tooltip(
+      message: _isSidebarCollapsed ? label : '',
+      child: GestureDetector(
+        onTap: () => _onTabTap(index),
+        child: itemContent,
       ),
     );
   }
