@@ -69,8 +69,8 @@ class _LoginScreenState extends State<LoginScreen> {
       barrierDismissible: false,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
             SizedBox(width: 10),
             Text(
@@ -79,13 +79,13 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
           ],
         ),
-        content: SizedBox(
+        content: const SizedBox(
           width: 500,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
-              children: const [
+              children: [
                 Text(
                   'AVISO DE PRIVACIDAD SIMPLIFICADO',
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),

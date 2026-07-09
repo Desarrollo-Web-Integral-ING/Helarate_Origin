@@ -85,7 +85,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
 
   Future<PickedImageData?> _pickImage() async {
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final result = await FilePicker.pickFiles(
         type: FileType.image,
         allowMultiple: false,
       );
@@ -736,6 +736,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                           : () async {
                               if (!formKey.currentState!.validate()) return;
 
+                              final bloc = context.read<InventarioBloc>();
                               setModal(() {
                                 isSaving = true;
                               });
@@ -743,8 +744,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                               String? finalImagenPath = imagenPath;
 
                               if (selectedImage != null) {
-                                final repo = context.read<InventarioBloc>().insumoRepository;
-                                final uploadedUrl = await repo.uploadImage(
+                                final uploadedUrl = await bloc.insumoRepository.uploadImage(
                                   nombreCtrl.text.trim().replaceAll(' ', '_'),
                                   selectedImage!.bytes,
                                   selectedImage!.extension,
@@ -772,9 +772,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                               );
 
                               if (isEdit) {
-                                context.read<InventarioBloc>().add(UpdateInsumoEvent(p));
+                                bloc.add(UpdateInsumoEvent(p));
                               } else {
-                                context.read<InventarioBloc>().add(AddInsumoEvent(p));
+                                bloc.add(AddInsumoEvent(p));
                               }
 
                               if (mounted) Navigator.pop(context);
