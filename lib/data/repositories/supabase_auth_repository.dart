@@ -74,6 +74,8 @@ class SupabaseAuthRepository implements AuthRepository {
           .from('profiles')
           .update({'aceptado_aviso_at': DateTime.now().toIso8601String()})
           .eq('id', response.user!.id);
+
+      await _logAuditoria('LOGIN', 'profiles', response.user!.id, 'Inicio de sesión de usuario y renovación de aceptación del Aviso de Privacidad.');
     } catch (e) {
       print('Error al actualizar fecha de aceptación de aviso en inicio de sesión: $e');
     }
@@ -103,6 +105,8 @@ class SupabaseAuthRepository implements AuthRepository {
           .from('profiles')
           .update({'aceptado_aviso_at': DateTime.now().toIso8601String()})
           .eq('id', response.user!.id);
+
+      await _logAuditoria('REGISTER', 'profiles', response.user!.id, 'Registro de nuevo usuario con nombre: "$nombre" y rol: "$rol". Aceptación inicial del Aviso de Privacidad.');
     } catch (e) {
       print('Error al registrar fecha de aceptación de aviso en registro: $e');
     }
@@ -112,6 +116,10 @@ class SupabaseAuthRepository implements AuthRepository {
 
   @override
   Future<void> signOut() async {
+    final user = _client.auth.currentUser;
+    if (user != null) {
+      await _logAuditoria('LOGOUT', 'profiles', user.id, 'Cierre de sesión de usuario de forma segura.');
+    }
     await _client.auth.signOut();
   }
 
@@ -120,10 +128,27 @@ class SupabaseAuthRepository implements AuthRepository {
     final user = _client.auth.currentUser;
     if (user == null) return;
     try {
+      await _logAuditoria('ARCO_DELETE', 'profiles', user.id, 'Ejercicio de Derecho ARCO: Cancelación de cuenta y solicitud de purgado de datos personales en cascada.');
       await _client.from('profiles').delete().eq('id', user.id);
     } catch (e) {
       print('Error al borrar perfil: $e');
     }
     await signOut();
+  }
+
+  Future<void> _logAuditoria(String action, String tableName, String recordId, String descripcion) async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) return;
+      await _client.from('audit_logs').insert({
+        'user_id': userId,
+        'action': action,
+        'table_name': tableName,
+        'record_id': recordId,
+        'descripcion': descripcion,
+      });
+    } catch (e) {
+      print('Error al guardar log de auditoría en base de datos: $e');
+    }
   }
 }
