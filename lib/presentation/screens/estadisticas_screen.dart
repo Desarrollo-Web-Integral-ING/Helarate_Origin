@@ -127,19 +127,19 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
   }
 
   Widget _buildEmpty() {
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
-          SizedBox(height: 16),
-          Text('Sin datos aún',
+          const SizedBox(height: 16),
+          const Text('Sin datos aún',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
                   color: AppTheme.textPrimary)),
-          SizedBox(height: 8),
-          Text('Registra ventas para ver estadísticas',
+          const SizedBox(height: 8),
+          const Text('Registra ventas para ver estadísticas',
               style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
         ],
       ),

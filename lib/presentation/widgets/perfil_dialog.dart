@@ -100,8 +100,8 @@ class PerfilDialog extends StatelessWidget {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: Row(
-          children: const [
+        title: const Row(
+          children: [
             Icon(Icons.warning_rounded, color: Colors.redAccent),
             SizedBox(width: 8),
             Text('Confirmar Cancelación'),
