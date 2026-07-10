@@ -111,6 +111,7 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
     action VARCHAR(20) NOT NULL,
     table_name VARCHAR(50) NOT NULL,
     record_id UUID NOT NULL,
+    descripcion TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
@@ -126,16 +127,34 @@ CREATE POLICY "Allow select audit logs for owners"
     )
   );
 
+CREATE POLICY "Allow insert audit logs for authenticated users" 
+  ON public.audit_logs FOR INSERT 
+  TO authenticated
+  WITH CHECK (auth.uid() = user_id);
+
 -- Función del disparador para auditoría
 CREATE OR REPLACE FUNCTION public.process_audit_log()
 RETURNS TRIGGER AS $$
+DECLARE
+    detail_msg TEXT;
 BEGIN
-    INSERT INTO public.audit_logs (user_id, action, table_name, record_id)
+    IF (TG_OP = 'INSERT') THEN
+        detail_msg := 'Creación de registro en la tabla ' || TG_TABLE_NAME || ' con ID: ' || COALESCE(NEW.id::text, 'N/A');
+    ELSIF (TG_OP = 'UPDATE') THEN
+        detail_msg := 'Actualización de registro en la tabla ' || TG_TABLE_NAME || ' con ID: ' || COALESCE(NEW.id::text, 'N/A');
+    ELSIF (TG_OP = 'DELETE') THEN
+        detail_msg := 'Eliminación de registro en la tabla ' || TG_TABLE_NAME || ' con ID: ' || COALESCE(OLD.id::text, 'N/A');
+    ELSE
+        detail_msg := 'Operación ' || TG_OP || ' en tabla ' || TG_TABLE_NAME;
+    END IF;
+
+    INSERT INTO public.audit_logs (user_id, action, table_name, record_id, descripcion)
     VALUES (
         auth.uid(),
         TG_OP,
         TG_TABLE_NAME,
-        COALESCE(NEW.id, OLD.id)
+        COALESCE(NEW.id, OLD.id),
+        detail_msg
     );
     RETURN COALESCE(NEW, OLD);
 END;
