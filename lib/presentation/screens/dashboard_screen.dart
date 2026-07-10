@@ -11,11 +11,11 @@ import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 import '../../core/theme/app_theme.dart';
 import '../widgets/stat_card.dart';
-import '../widgets/perfil_dialog.dart';
 import 'inventario_produccion_screen.dart';
 import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
 import 'estadisticas_screen.dart';
+import 'perfil_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -164,9 +164,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       onPressed: () {
                         final authState = context.read<AuthBloc>().state;
                         if (authState is Authenticated) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => PerfilDialog(perfil: authState.usuario),
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const PerfilScreen()),
                           );
                         }
                       },

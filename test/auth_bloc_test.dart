@@ -43,6 +43,15 @@ class FakeAuthRepository implements AuthRepository {
   Future<void> deleteAccount() async {
     mockUser = null;
   }
+
+  @override
+  Future<UsuarioPerfil> updateProfile(String nombre) async {
+    if (shouldThrow) throw Exception('Update error');
+    final actual = mockUser;
+    if (actual == null) throw Exception('No hay usuario autenticado');
+    mockUser = actual.copyWith(nombre: nombre);
+    return mockUser!;
+  }
 }
 
 void main() {

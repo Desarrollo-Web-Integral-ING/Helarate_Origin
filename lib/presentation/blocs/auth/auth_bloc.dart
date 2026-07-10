@@ -11,6 +11,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<SignInRequested>(_onSignInRequested);
     on<SignOutRequested>(_onSignOutRequested);
     on<DeleteAccountRequested>(_onDeleteAccountRequested);
+    on<ProfileUpdated>(_onProfileUpdated);
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
@@ -74,5 +75,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     } catch (e) {
       emit(AuthFailure('No se pudo eliminar la cuenta: $e'));
     }
+  }
+
+  // Sincroniza el perfil ya actualizado (Rectificación ARCO) sin pasar por
+  // AuthLoading, para no desmontar MainNavigation/PerfilScreen.
+  void _onProfileUpdated(ProfileUpdated event, Emitter<AuthState> emit) {
+    emit(Authenticated(event.usuario));
   }
 }
