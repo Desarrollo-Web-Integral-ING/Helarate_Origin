@@ -19,20 +19,19 @@ import 'presentation/blocs/dashboard/dashboard_event.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/auth/auth_event.dart';
 import 'presentation/blocs/auth/auth_state.dart';
-import 'presentation/widgets/perfil_dialog.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
 import 'presentation/screens/ventas_screen.dart';
 import 'presentation/screens/estadisticas_screen.dart';
 import 'presentation/screens/login_screen.dart';
-
+import 'presentation/screens/perfil_screen.dart';
 
 import 'core/widgets/indexed_stack_resume.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   // Inicialización de Variables de Entorno y Supabase
   await dotenv.load(fileName: '.env');
   final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
@@ -40,13 +39,13 @@ void main() async {
   print('--- HELARATE DEBUG: VARIABLES DE ENTORNO ---');
   print('SUPABASE_URL: $supabaseUrl');
   print('SUPABASE_ANON_KEY (longitud): ${supabaseKey.length}');
-  
+
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabaseKey,
   );
   print('--- HELARATE DEBUG: SUPABASE INICIALIZADO ---');
-  
+
   // Inicialización de Inyector de Dependencias
   setupServiceLocator();
 
@@ -159,7 +158,8 @@ class _MainNavigationState extends State<MainNavigation> {
     final isLargeScreen = width >= 800;
 
     final authState = context.watch<AuthBloc>().state;
-    final isEmployee = authState is Authenticated && authState.usuario.isEmployee;
+    final isEmployee =
+        authState is Authenticated && authState.usuario.isEmployee;
 
     return Scaffold(
       body: Row(
@@ -188,15 +188,17 @@ class _MainNavigationState extends State<MainNavigation> {
               ),
               child: SafeArea(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
                     children: [
-                      _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+                      _navItem(
+                          0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
                       _navItem(1, Icons.inventory_2_rounded,
                           Icons.inventory_2_outlined, 'Insumos'),
-                      _navItem(
-                          2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
+                      _navItem(2, Icons.icecream_rounded,
+                          Icons.icecream_outlined, 'Nieves'),
                       _navItem(3, Icons.point_of_sale_rounded,
                           Icons.point_of_sale_outlined, 'Ventas'),
                       if (!isEmployee)
@@ -215,7 +217,13 @@ class _MainNavigationState extends State<MainNavigation> {
     final user = authState is Authenticated ? authState.usuario : null;
     final initials = user == null || user.nombre.trim().isEmpty
         ? 'UN'
-        : user.nombre.trim().split(' ').map((e) => e.isNotEmpty ? e[0] : '').take(2).join().toUpperCase();
+        : user.nombre
+            .trim()
+            .split(' ')
+            .map((e) => e.isNotEmpty ? e[0] : '')
+            .take(2)
+            .join()
+            .toUpperCase();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
@@ -238,13 +246,16 @@ class _MainNavigationState extends State<MainNavigation> {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
             child: Row(
-              mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: _isSidebarCollapsed
+                  ? MainAxisAlignment.center
+                  : MainAxisAlignment.spaceBetween,
               children: [
                 if (!_isSidebarCollapsed) ...[
                   Row(
                     children: [
                       ShaderMask(
-                        shaderCallback: (bounds) => AppTheme.primaryGradient.createShader(bounds),
+                        shaderCallback: (bounds) =>
+                            AppTheme.primaryGradient.createShader(bounds),
                         child: const Icon(
                           Icons.icecream_rounded,
                           color: Colors.white,
@@ -264,13 +275,16 @@ class _MainNavigationState extends State<MainNavigation> {
                     ],
                   ),
                   IconButton(
-                    icon: const Icon(Icons.chevron_left_rounded, color: AppTheme.textSecondary),
+                    icon: const Icon(Icons.chevron_left_rounded,
+                        color: AppTheme.textSecondary),
                     onPressed: () => setState(() => _isSidebarCollapsed = true),
                   ),
                 ] else ...[
                   IconButton(
-                    icon: const Icon(Icons.chevron_right_rounded, color: AppTheme.textSecondary),
-                    onPressed: () => setState(() => _isSidebarCollapsed = false),
+                    icon: const Icon(Icons.chevron_right_rounded,
+                        color: AppTheme.textSecondary),
+                    onPressed: () =>
+                        setState(() => _isSidebarCollapsed = false),
                   ),
                 ],
               ],
@@ -283,16 +297,21 @@ class _MainNavigationState extends State<MainNavigation> {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 14),
               children: [
-                _sidebarItem(0, Icons.grid_view_rounded, Icons.grid_view_outlined, 'Inicio'),
+                _sidebarItem(0, Icons.grid_view_rounded,
+                    Icons.grid_view_outlined, 'Inicio'),
                 const SizedBox(height: 8),
-                _sidebarItem(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Insumos'),
+                _sidebarItem(1, Icons.inventory_2_rounded,
+                    Icons.inventory_2_outlined, 'Insumos'),
                 const SizedBox(height: 8),
-                _sidebarItem(2, Icons.icecream_rounded, Icons.icecream_outlined, 'Nieves'),
+                _sidebarItem(2, Icons.icecream_rounded, Icons.icecream_outlined,
+                    'Nieves'),
                 const SizedBox(height: 8),
-                _sidebarItem(3, Icons.point_of_sale_rounded, Icons.point_of_sale_outlined, 'Ventas'),
+                _sidebarItem(3, Icons.point_of_sale_rounded,
+                    Icons.point_of_sale_outlined, 'Ventas'),
                 const SizedBox(height: 8),
                 if (!isEmployee) ...[
-                  _sidebarItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
+                  _sidebarItem(4, Icons.bar_chart_rounded,
+                      Icons.bar_chart_outlined, 'Stats'),
                   const SizedBox(height: 8),
                 ],
               ],
@@ -303,24 +322,35 @@ class _MainNavigationState extends State<MainNavigation> {
           if (user != null) ...[
             const Divider(height: 1, thickness: 1),
             const SizedBox(height: 8),
-            // Profile display section (clickable to show old dialog)
+            // Sección de perfil: abre la pantalla completa de Mi Perfil / ARCO
             GestureDetector(
               onTap: () {
-                PerfilDialog.show(context, user);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const PerfilScreen()),
+                );
               },
               child: Tooltip(
-                message: _isSidebarCollapsed ? '${user.nombre} (${user.rol.toUpperCase()})' : '',
+                message: _isSidebarCollapsed
+                    ? '${user.nombre} (${user.rol.toUpperCase()})'
+                    : '',
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                   child: Row(
-                    mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                    mainAxisAlignment: _isSidebarCollapsed
+                        ? MainAxisAlignment.center
+                        : MainAxisAlignment.start,
                     children: [
                       CircleAvatar(
                         radius: 20,
                         backgroundColor: AppTheme.primary,
                         child: Text(
                           initials,
-                          style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold),
                         ),
                       ),
                       if (!_isSidebarCollapsed) ...[
@@ -342,7 +372,9 @@ class _MainNavigationState extends State<MainNavigation> {
                               Text(
                                 user.rol.toUpperCase(),
                                 style: TextStyle(
-                                  color: user.isEmployee ? Colors.blue : Colors.purple,
+                                  color: user.isEmployee
+                                      ? Colors.blue
+                                      : Colors.purple,
                                   fontSize: 10,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -368,13 +400,16 @@ class _MainNavigationState extends State<MainNavigation> {
                     context.read<AuthBloc>().add(SignOutRequested());
                   },
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     decoration: BoxDecoration(
                       color: Colors.red[50],
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Row(
-                      mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+                      mainAxisAlignment: _isSidebarCollapsed
+                          ? MainAxisAlignment.center
+                          : MainAxisAlignment.start,
                       children: [
                         const Icon(
                           Icons.logout_rounded,
@@ -417,7 +452,9 @@ class _MainNavigationState extends State<MainNavigation> {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
-        mainAxisAlignment: _isSidebarCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+        mainAxisAlignment: _isSidebarCollapsed
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: [
           Icon(
             isActive ? activeIcon : inactiveIcon,
