@@ -23,7 +23,7 @@ jobs:
           node-version: '20'
 
       - name: Instalar Newman
-        run: npm install -g newman newman-reporter-junit
+        run: npm install -g newman
 
       - name: Ejecutar coleccion INT-01
         run: |
