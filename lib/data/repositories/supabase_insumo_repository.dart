@@ -12,7 +12,7 @@ class SupabaseInsumoRepository implements InsumoRepository {
     final userId = _client.auth.currentUser?.id;
     var query = _client.from('insumos').select();
     if (userId != null) {
-      query = query.eq('user_id', userId);
+      query = query.or('user_id.eq.$userId,user_id.is.null');
     }
     
     final response = await query.order('nombre', ascending: true);

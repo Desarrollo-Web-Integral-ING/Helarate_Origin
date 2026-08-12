@@ -33,8 +33,8 @@ class SupabaseVentaRepository implements VentaRepository {
   @override
   Future<List<VentaModel>> getByDateRange(DateTime start, DateTime end) async {
     final userId   = _client.auth.currentUser?.id;
-    final startStr = start.toIso8601String().substring(0, 10); // 'YYYY-MM-DD'
-    final endStr   = end.toIso8601String().substring(0, 10);
+    final startStr = DateTime(start.year, start.month, start.day, 0, 0, 0).toIso8601String();
+    final endStr   = DateTime(end.year, end.month, end.day, 23, 59, 59).toIso8601String();
 
     var query = _client
         .from('ventas')
@@ -43,7 +43,7 @@ class SupabaseVentaRepository implements VentaRepository {
         .lte('fecha', endStr);
 
     if (userId != null) {
-      query = query.eq('user_id', userId);
+      query = query.or('user_id.eq.$userId,user_id.is.null');
     }
 
     final response = await query.order('fecha', ascending: false);
