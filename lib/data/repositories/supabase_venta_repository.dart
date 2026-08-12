@@ -55,6 +55,7 @@ class SupabaseVentaRepository implements VentaRepository {
 
   @override
   Future<void> delete(String id) async {
+    await _client.from('detalle_venta').delete().eq('venta_id', id);
     await _client.from('ventas').delete().eq('id', id);
   }
 
