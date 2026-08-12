@@ -25,6 +25,17 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
+      - name: Debug - listar archivos de tests
+        run: |
+          echo "Contenido de tests/integracion:"
+          ls -la tests/integracion/ || echo "La carpeta tests/integracion no existe"
+          echo "---"
+          echo "Busqueda global de archivos .postman_environment.json:"
+          find . -name "*.postman_environment.json" 2>/dev/null
+          echo "---"
+          echo "Busqueda global de archivos .postman_collection.json:"
+          find . -name "*.postman_collection.json" 2>/dev/null
+
       - name: Ejecutar coleccion INT-01
         run: |
           newman run tests/integracion/INT-01-auth.postman_collection.json \
