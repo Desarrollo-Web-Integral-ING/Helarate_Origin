@@ -1,0 +1,43 @@
+name: INT-01 - Prueba de Integracion Auth
+
+on:
+  push:
+    paths:
+      - 'tests/integracion/**'
+  pull_request:
+    paths:
+      - 'tests/integracion/**'
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 8 * * *'
+
+jobs:
+  int01-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar Newman
+        run: npm install -g newman newman-reporter-junit
+
+      - name: Ejecutar coleccion INT-01
+        run: |
+          newman run tests/integracion/INT-01-auth.postman_collection.json \
+            -e tests/integracion/INT-01.postman_environment.json \
+            --env-var "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
+            --env-var "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" \
+            --env-var "TEST_USER_PASSWORD=${{ secrets.TEST_USER_PASSWORD }}" \
+            --reporters cli,junit \
+            --reporter-junit-export tests/integracion/reports/INT-01-report.xml
+
+      - name: Publicar reporte JUnit
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: INT-01-junit-report
+          path: tests/integracion/reports/INT-01-report.xml
