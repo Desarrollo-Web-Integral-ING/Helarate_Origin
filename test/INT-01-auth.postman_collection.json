@@ -1,0 +1,79 @@
+{
+  "info": {
+    "name": "INT-01 - Autenticacion Supabase Auth API",
+    "description": "Prueba de Integracion Cliente-API (Endpoint HTTP POST) para validar la integracion sincronica entre la capa de auth de Flutter y el servicio Supabase Auth.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "POST /auth/v1/token - Login cajero",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "apikey",
+            "value": "{{SUPABASE_ANON_KEY}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{SUPABASE_URL}}/auth/v1/token?grant_type=password",
+          "host": ["{{SUPABASE_URL}}"],
+          "path": ["auth", "v1", "token"],
+          "query": [
+            {
+              "key": "grant_type",
+              "value": "password"
+            }
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"{{TEST_USER_EMAIL}}\", \"password\": \"{{TEST_USER_PASSWORD}}\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Codigo de estado HTTP 200 OK', function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "",
+              "const jsonData = pm.response.json();",
+              "",
+              "pm.test('La respuesta contiene access_token valido', function () {",
+              "    pm.expect(jsonData).to.have.property('access_token');",
+              "    pm.expect(jsonData.access_token).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "pm.test('La respuesta contiene refresh_token valido', function () {",
+              "    pm.expect(jsonData).to.have.property('refresh_token');",
+              "    pm.expect(jsonData.refresh_token).to.be.a('string').and.not.empty;",
+              "});",
+              "",
+              "pm.test('El access_token es un JWT con estructura valida', function () {",
+              "    const parts = jsonData.access_token.split('.');",
+              "    pm.expect(parts.length).to.eql(3);",
+              "    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));",
+              "    pm.expect(payload).to.have.property('exp');",
+              "    pm.expect(payload.exp).to.be.above(Math.floor(Date.now() / 1000));",
+              "});",
+              "",
+              "pm.test('La respuesta contiene user con datos de perfil validos', function () {",
+              "    pm.expect(jsonData).to.have.property('user');",
+              "    pm.expect(jsonData.user).to.have.property('id').that.is.a('string').and.not.empty;",
+              "    pm.expect(jsonData.user.email).to.eql(pm.variables.get('TEST_USER_EMAIL'));",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}
