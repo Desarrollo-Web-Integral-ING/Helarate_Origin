@@ -3,10 +3,10 @@ name: INT-01 - Prueba de Integracion Auth
 on:
   push:
     paths:
-      - 'tests/integracion/**'
+      - 'test/**'
   pull_request:
     paths:
-      - 'tests/integracion/**'
+      - 'test/**'
   workflow_dispatch: {}
   schedule:
     - cron: '0 8 * * *'
@@ -25,30 +25,19 @@ jobs:
       - name: Instalar Newman
         run: npm install -g newman
 
-      - name: Debug - listar archivos de tests
-        run: |
-          echo "Contenido de tests/integracion:"
-          ls -la tests/integracion/ || echo "La carpeta tests/integracion no existe"
-          echo "---"
-          echo "Busqueda global de archivos .postman_environment.json:"
-          find . -name "*.postman_environment.json" 2>/dev/null
-          echo "---"
-          echo "Busqueda global de archivos .postman_collection.json:"
-          find . -name "*.postman_collection.json" 2>/dev/null
-
       - name: Ejecutar coleccion INT-01
         run: |
-          newman run tests/integracion/INT-01-auth.postman_collection.json \
-            -e tests/integracion/INT-01.postman_environment.json \
+          newman run test/INT-01-auth.postman_collection.json \
+            -e test/INT-01.postman_environment.json \
             --env-var "SUPABASE_URL=${{ secrets.SUPABASE_URL }}" \
             --env-var "SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}" \
             --env-var "TEST_USER_PASSWORD=${{ secrets.TEST_USER_PASSWORD }}" \
             --reporters cli,junit \
-            --reporter-junit-export tests/integracion/reports/INT-01-report.xml
+            --reporter-junit-export test/reports/INT-01-report.xml
 
       - name: Publicar reporte JUnit
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: INT-01-junit-report
-          path: tests/integracion/reports/INT-01-report.xml
+          path: test/reports/INT-01-report.xml
