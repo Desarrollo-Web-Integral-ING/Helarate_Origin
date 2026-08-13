@@ -833,10 +833,11 @@ class _VentasScreenState extends State<VentasScreen> {
                             ? 'Selecciona y agrega productos'
                             : 'Confirmar venta (${_fmt.format(totalIngresos)})',
                       ),
-                    ),
-                  ),
-                ],
-              ),
+                    );
+                  }),
+                ),
+              ],
+            ),
             ),
           );
         },
