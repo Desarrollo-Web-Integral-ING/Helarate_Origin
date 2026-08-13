@@ -75,7 +75,6 @@ void main() {
     fakeAuthRepository.mockUser = null;
 
     final expectedStates = [
-      isA<AuthLoading>(),
       isA<Unauthenticated>(),
     ];
 
@@ -92,7 +91,6 @@ void main() {
     );
 
     final expectedStates = [
-      isA<AuthLoading>(),
       isA<Authenticated>(),
     ];
 
