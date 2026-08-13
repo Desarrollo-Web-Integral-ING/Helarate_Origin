@@ -378,6 +378,7 @@ class _VentasScreenState extends State<VentasScreen> {
   void _showRegistrarVenta() {
     Insumo? productoSeleccionado;
     final cantidadCtrl = TextEditingController(text: '1');
+    final montoRecibidoCtrl = TextEditingController();
     final List<_CartItem> carrito = [];
 
     showModalBottomSheet(
@@ -658,15 +659,108 @@ class _VentasScreenState extends State<VentasScreen> {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Calculadora de Cambio (Opcional)',
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary),
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 3,
+                          child: TextField(
+                            controller: montoRecibidoCtrl,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            decoration: InputDecoration(
+                              labelText: 'Efectivo Recibido',
+                              prefixIcon: const Icon(Icons.attach_money, color: AppTheme.primary, size: 20),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onChanged: (_) => setModalState(() {}),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          flex: 2,
+                          child: Builder(builder: (context) {
+                            final montoRecibido = double.tryParse(montoRecibidoCtrl.text) ?? 0.0;
+                            final cambio = montoRecibido - totalIngresos;
+                            final isError = montoRecibido > 0 && cambio < 0;
+                            final isOk = montoRecibido > 0 && cambio >= 0;
+
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isError ? Colors.red.shade50 : (isOk ? Colors.green.shade50 : Colors.grey.shade50),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: isError ? Colors.red.shade200 : (isOk ? Colors.green.shade300 : Colors.grey.shade300),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    isError ? 'Falta' : 'Cambio',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w600,
+                                        color: isError ? Colors.red.shade700 : AppTheme.textSecondary),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    montoRecibido > 0 ? _fmt.format(cambio.abs()) : '\$0.00',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 15,
+                                      color: isError ? Colors.red.shade700 : (isOk ? Colors.green.shade700 : AppTheme.textPrimary),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildMontoRapidoBtn('Exacto', totalIngresos, montoRecibidoCtrl, setModalState),
+                          const SizedBox(width: 8),
+                          _buildMontoRapidoBtn('\$50', 50.0, montoRecibidoCtrl, setModalState),
+                          const SizedBox(width: 8),
+                          _buildMontoRapidoBtn('\$100', 100.0, montoRecibidoCtrl, setModalState),
+                          const SizedBox(width: 8),
+                          _buildMontoRapidoBtn('\$200', 200.0, montoRecibidoCtrl, setModalState),
+                          const SizedBox(width: 8),
+                          _buildMontoRapidoBtn('\$500', 500.0, montoRecibidoCtrl, setModalState),
+                        ],
+                      ),
+                    ),
                   ],
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: carrito.isEmpty
-                          ? null
-                          : () {
-                              // Validar stock para cada producto en el carrito por seguridad
+                    child: Builder(builder: (context) {
+                      final montoRecibido = double.tryParse(montoRecibidoCtrl.text) ?? 0.0;
+                      final bool canSubmit = carrito.isNotEmpty && (montoRecibido == 0 || montoRecibido >= totalIngresos);
+
+                      return ElevatedButton(
+                        onPressed: !canSubmit
+                            ? null
+                            : () {
+                                // Validar stock para cada producto en el carrito por seguridad
                               for (final item in carrito) {
                                 if (item.cantidad > item.producto.stockActual) {
                                   ScaffoldMessenger.of(context).showSnackBar(
@@ -774,6 +868,20 @@ class _VentasScreenState extends State<VentasScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildMontoRapidoBtn(String label, double monto, TextEditingController ctrl, StateSetter setModalState) {
+    return ActionChip(
+      label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      backgroundColor: Colors.white,
+      side: BorderSide(color: Colors.grey.shade300),
+      padding: EdgeInsets.zero,
+      onPressed: () {
+        setModalState(() {
+          ctrl.text = monto.toStringAsFixed(2);
+        });
+      },
     );
   }
 }
