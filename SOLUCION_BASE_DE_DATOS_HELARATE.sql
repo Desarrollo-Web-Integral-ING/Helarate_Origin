@@ -1,6 +1,7 @@
 -- =====================================================================
 -- SCRIPT DEFINITIVO Y UNIFICADO DE CONFIGURACIÓN Y FIX DE BASE DE DATOS
 -- Proyecto: Helarate (nevero_app - Supabase PostgreSQL)
+-- Incluye: Lectura, Escritura, Borrado (DELETE), Cascadas (CASCADE) y RLS
 -- =====================================================================
 
 -- 1. Crear el tipo Enum 'tipo_insumo' si no existe
@@ -30,12 +31,27 @@ CREATE TABLE IF NOT EXISTS public.insumos (
   CONSTRAINT insumos_pkey PRIMARY KEY (id)
 );
 
--- 3. Ajustar el tipo de columna 'fecha' en public.ventas a DATE para compatibilidad con PostgREST
+-- 3. Ajustar la columna 'fecha' a DATE en public.ventas para compatibilidad con PostgREST
 ALTER TABLE public.ventas 
 ALTER COLUMN fecha TYPE DATE 
 USING fecha::date;
 
--- 4. Sincronizar perfiles en public.profiles para todos los usuarios en auth.users
+-- 4. Habilitar borrado en cascada (ON DELETE CASCADE) de detalle_venta al borrar en ventas
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints 
+    WHERE constraint_name = 'detalle_venta_venta_id_fkey'
+  ) THEN
+    ALTER TABLE public.detalle_venta DROP CONSTRAINT detalle_venta_venta_id_fkey;
+  END IF;
+END $$;
+
+ALTER TABLE public.detalle_venta
+ADD CONSTRAINT detalle_venta_venta_id_fkey 
+FOREIGN KEY (venta_id) REFERENCES public.ventas(id) ON DELETE CASCADE;
+
+-- 5. Sincronizar perfiles en public.profiles para todos los usuarios en auth.users
 INSERT INTO public.profiles (id, email, nombre_completo, rol)
 SELECT 
     id, 
@@ -46,7 +62,9 @@ FROM auth.users
 ON CONFLICT (id) DO UPDATE 
 SET rol = EXCLUDED.rol;
 
--- 5. Habilitar Políticas RLS Abiertas de Lectura/Escritura para Usuarios Autenticados
+-- 6. Habilitar Políticas RLS Abiertas (SELECT, INSERT, UPDATE, DELETE) para Usuarios Autenticados
+
+-- Políticas para 'insumos'
 DROP POLICY IF EXISTS "Allow authenticated read insumos" ON public.insumos;
 CREATE POLICY "Allow authenticated read insumos" ON public.insumos FOR SELECT TO authenticated USING (true);
 
@@ -56,19 +74,30 @@ CREATE POLICY "Allow authenticated write insumos" ON public.insumos FOR INSERT T
 DROP POLICY IF EXISTS "Allow authenticated update insumos" ON public.insumos;
 CREATE POLICY "Allow authenticated update insumos" ON public.insumos FOR UPDATE TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Allow authenticated delete insumos" ON public.insumos;
+CREATE POLICY "Allow authenticated delete insumos" ON public.insumos FOR DELETE TO authenticated USING (true);
+
+-- Políticas para 'ventas'
 DROP POLICY IF EXISTS "Allow authenticated read ventas" ON public.ventas;
 CREATE POLICY "Allow authenticated read ventas" ON public.ventas FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Allow authenticated insert ventas" ON public.ventas;
 CREATE POLICY "Allow authenticated insert ventas" ON public.ventas FOR INSERT TO authenticated WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Allow authenticated delete ventas" ON public.ventas;
+CREATE POLICY "Allow authenticated delete ventas" ON public.ventas FOR DELETE TO authenticated USING (true);
+
+-- Políticas para 'detalle_venta'
 DROP POLICY IF EXISTS "Allow authenticated read detalle_venta" ON public.detalle_venta;
 CREATE POLICY "Allow authenticated read detalle_venta" ON public.detalle_venta FOR SELECT TO authenticated USING (true);
 
 DROP POLICY IF EXISTS "Allow authenticated insert detalle_venta" ON public.detalle_venta;
 CREATE POLICY "Allow authenticated insert detalle_venta" ON public.detalle_venta FOR INSERT TO authenticated WITH CHECK (true);
 
--- 6. Poblado de Productos de Prueba para todos los Usuarios Autenticados
+DROP POLICY IF EXISTS "Allow authenticated delete detalle_venta" ON public.detalle_venta;
+CREATE POLICY "Allow authenticated delete detalle_venta" ON public.detalle_venta FOR DELETE TO authenticated USING (true);
+
+-- 7. Poblado de Productos de Prueba para todos los Usuarios Autenticados
 
 -- Producto CN-01: Helado de Vainilla 1/2 Litro (Stock 20, Precio $45.00)
 INSERT INTO public.insumos (
@@ -103,7 +132,7 @@ UPDATE public.insumos
 SET user_id = (SELECT id FROM auth.users ORDER BY created_at ASC LIMIT 1)
 WHERE user_id IS NULL;
 
--- 7. Consulta de verificación final
+-- 8. Consulta de verificación final
 SELECT 
     v.id AS venta_id, 
     v.fecha, 
