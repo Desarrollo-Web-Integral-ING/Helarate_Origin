@@ -11,7 +11,7 @@ import '../blocs/inventario/inventario_bloc.dart';
 import '../blocs/inventario/inventario_event.dart';
 import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
-
+import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class InventarioProduccionScreen extends StatefulWidget {
@@ -754,7 +754,13 @@ class _InventarioProduccionScreenState
                                 bloc.add(AddInsumoEvent(p));
                               }
 
-                              if (mounted) Navigator.pop(context);
+                              if (mounted) {
+                                AppToast.showSuccess(
+                                  context,
+                                  isEdit ? 'Insumo actualizado con éxito' : 'Insumo agregado con éxito',
+                                );
+                                Navigator.pop(context);
+                              }
                             },
                       child: isSaving
                           ? const SizedBox(
@@ -790,7 +796,10 @@ class _InventarioProduccionScreenState
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               context.read<InventarioBloc>().add(DeleteInsumoEvent(p.id));
-              if (mounted) Navigator.pop(context);
+              if (mounted) {
+                AppToast.showInfo(context, 'Insumo "${p.nombre}" eliminado');
+                Navigator.pop(context);
+              }
             },
             child: const Text('Eliminar'),
           ),

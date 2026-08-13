@@ -11,6 +11,7 @@ import '../blocs/inventario/inventario_bloc.dart';
 import '../blocs/inventario/inventario_event.dart';
 import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class _CartItem {
@@ -728,7 +729,10 @@ class _VentasScreenState extends State<VentasScreen> {
                                 context.read<InventarioBloc>().add(UpdateInsumoEvent(prodActualizado));
                               }
 
-                              if (mounted) Navigator.pop(context);
+                              if (mounted) {
+                                AppToast.showSuccess(context, 'Venta registrada con éxito');
+                                Navigator.pop(context);
+                              }
                             },
                       child: Text(
                         carrito.isEmpty
@@ -761,7 +765,10 @@ class _VentasScreenState extends State<VentasScreen> {
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               context.read<VentaBloc>().add(DeleteVentaEvent(v.id));
-              if (mounted) Navigator.pop(context);
+              if (mounted) {
+                AppToast.showInfo(context, 'Registro de venta eliminado');
+                Navigator.pop(context);
+              }
             },
             child: const Text('Eliminar'),
           ),

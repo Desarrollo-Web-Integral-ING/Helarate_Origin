@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/widgets/app_toast.dart';
 import '../../domain/models/usuario_perfil.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
@@ -33,12 +34,7 @@ class PerfilDialog extends StatelessWidget {
 
     Clipboard.setData(ClipboardData(text: jsonStr));
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('📥 Datos exportados y copiados al portapapeles en formato JSON.'),
-        backgroundColor: Colors.green,
-      ),
-    );
+    AppToast.showSuccess(context, '📥 Datos exportados y copiados al portapapeles en formato JSON.');
 
     try {
       final client = Supabase.instance.client;

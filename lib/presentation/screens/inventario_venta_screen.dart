@@ -11,7 +11,7 @@ import '../blocs/inventario/inventario_bloc.dart';
 import '../blocs/inventario/inventario_event.dart';
 import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
-
+import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class InventarioVentaScreen extends StatefulWidget {
@@ -791,7 +791,13 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                 bloc.add(AddInsumoEvent(p));
                               }
 
-                              if (mounted) Navigator.pop(context);
+                              if (mounted) {
+                                AppToast.showSuccess(
+                                  context,
+                                  isEdit ? 'Producto actualizado con éxito' : 'Producto agregado con éxito',
+                                );
+                                Navigator.pop(context);
+                              }
                             },
                       child: isSaving
                           ? const SizedBox(
@@ -819,15 +825,18 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Eliminar producto'),
-        content: Text('¿Eliminar "${p.nombre}"?'),
+        title: const Text('Eliminar nieve'),
+        content: Text('¿Eliminar "${p.nombre}" del inventario?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () {
               context.read<InventarioBloc>().add(DeleteInsumoEvent(p.id));
-              if (mounted) Navigator.pop(context);
+              if (mounted) {
+                AppToast.showInfo(context, 'Producto "${p.nombre}" eliminado');
+                Navigator.pop(context);
+              }
             },
             child: const Text('Eliminar'),
           ),

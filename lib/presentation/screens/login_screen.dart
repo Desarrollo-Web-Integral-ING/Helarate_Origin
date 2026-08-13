@@ -6,6 +6,8 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 
+import '../../core/widgets/app_toast.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -60,6 +62,8 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             );
       }
+    } else {
+      AppToast.showWarning(context, 'Ingresa correo y contraseña válidos');
     }
   }
 
@@ -117,12 +121,7 @@ class _LoginScreenState extends State<LoginScreen> {
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Debes aceptar el Aviso de Privacidad para poder utilizar el sistema.'),
-                  backgroundColor: Colors.red,
-                ),
-              );
+              AppToast.showError(context, 'Debes aceptar el Aviso de Privacidad para poder utilizar el sistema.');
             },
             child: const Text('Rechazar', style: TextStyle(color: Colors.red)),
           ),
@@ -153,21 +152,10 @@ class _LoginScreenState extends State<LoginScreen> {
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    const Icon(Icons.error_outline, color: Colors.white),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(state.message)),
-                  ],
-                ),
-                backgroundColor: AppTheme.secondary,
-                behavior: SnackBarBehavior.floating,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(10),
-                ),
-              ),
+            AppToast.showError(
+              context,
+              state.message.isEmpty ? 'Credenciales inválidas. Verifique correo y contraseña' : state.message,
+              title: 'Error de autenticación',
             );
           }
         },

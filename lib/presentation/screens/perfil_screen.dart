@@ -12,6 +12,8 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 
+import '../../core/widgets/app_toast.dart';
+
 /// Pantalla completa de Perfil. Sustituye al antiguo PerfilDialog flotante,
 /// mostrando la información del usuario y los Derechos ARCO (LGPDPPSO) en
 /// una vista dedicada, accesible desde la navegación lateral (web) y el
@@ -50,12 +52,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
 
   void _mostrarSnack(String mensaje, {bool esError = false}) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(mensaje),
-        backgroundColor: esError ? Colors.redAccent : Colors.green,
-      ),
-    );
+    if (esError) {
+      AppToast.showError(context, mensaje);
+    } else {
+      AppToast.showSuccess(context, mensaje);
+    }
   }
 
   // ---------------------------------------------------------------------
