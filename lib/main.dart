@@ -98,14 +98,14 @@ class NeveroApp extends StatelessWidget {
             if (state is Authenticated) {
               return const MainNavigation();
             }
-            if (state is Unauthenticated || state is AuthFailure) {
-              return const LoginScreen();
+            if (state is AuthInitial) {
+              return const Scaffold(
+                body: Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
             }
-            return const Scaffold(
-              body: Center(
-                child: CircularProgressIndicator(),
-              ),
-            );
+            return const LoginScreen();
           },
         ),
       ),

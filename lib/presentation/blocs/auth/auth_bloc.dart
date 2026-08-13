@@ -15,7 +15,6 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
   }
 
   Future<void> _onAppStarted(AppStarted event, Emitter<AuthState> emit) async {
-    emit(AuthLoading());
     try {
       final user = await authRepository.getCurrentUser();
       if (user != null) {
