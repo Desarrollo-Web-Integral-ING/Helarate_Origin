@@ -380,6 +380,7 @@ class _VentasScreenState extends State<VentasScreen> {
     final cantidadCtrl = TextEditingController(text: '1');
     final montoRecibidoCtrl = TextEditingController();
     final List<_CartItem> carrito = [];
+    bool isSubmitting = false;
 
     showModalBottomSheet(
       context: context,
@@ -392,23 +393,13 @@ class _VentasScreenState extends State<VentasScreen> {
 
           void agregarAlCarrito() {
             if (productoSeleccionado == null) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Por favor selecciona un producto'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
+              AppToast.showWarning(context, 'Por favor selecciona un producto');
               return;
             }
 
             final cantidad = double.tryParse(cantidadCtrl.text) ?? 1.0;
             if (cantidad <= 0) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Ingresa una cantidad mayor a 0'),
-                  backgroundColor: Colors.orange,
-                ),
-              );
+              AppToast.showWarning(context, 'Ingresa una cantidad mayor a 0');
               return;
             }
 
@@ -418,13 +409,7 @@ class _VentasScreenState extends State<VentasScreen> {
                 .fold(0.0, (s, i) => s + i.cantidad);
 
             if (yaEnCarrito + cantidad > productoSeleccionado!.stockActual) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Stock insuficiente. Cantidad excede el stock disponible'),
-                  backgroundColor: Colors.red,
-                  duration: Duration(seconds: 3),
-                ),
-              );
+              AppToast.showError(context, 'Stock insuficiente. Cantidad excede el stock disponible');
               return;
             }
 
@@ -521,7 +506,7 @@ class _VentasScreenState extends State<VentasScreen> {
                       ),
                       const SizedBox(width: 10),
                       ElevatedButton.icon(
-                        onPressed: agregarAlCarrito,
+                        onPressed: isSubmitting ? null : agregarAlCarrito,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: AppTheme.primary,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -604,13 +589,7 @@ class _VentasScreenState extends State<VentasScreen> {
                                       color: AppTheme.primary,
                                       onPressed: () {
                                         if (item.cantidad + 1 > item.producto.stockActual) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(
-                                              content: Text('Stock insuficiente. Cantidad excede el stock disponible'),
-                                              backgroundColor: Colors.red,
-                                              duration: Duration(seconds: 3),
-                                            ),
-                                          );
+                                          AppToast.showError(context, 'Stock insuficiente. Cantidad excede el stock disponible');
                                           return;
                                         }
                                         setModalState(() {
@@ -757,19 +736,16 @@ class _VentasScreenState extends State<VentasScreen> {
                       final bool canSubmit = carrito.isNotEmpty && (montoRecibido == 0 || montoRecibido >= totalIngresos);
 
                       return ElevatedButton(
-                        onPressed: !canSubmit
+                        onPressed: (!canSubmit || isSubmitting)
                             ? null
                             : () {
+                                if (isSubmitting) return;
+                                setModalState(() => isSubmitting = true);
                                 // Validar stock para cada producto en el carrito por seguridad
                               for (final item in carrito) {
                                 if (item.cantidad > item.producto.stockActual) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Stock insuficiente en ${item.producto.nombre}. Cantidad excede el stock disponible'),
-                                      backgroundColor: Colors.red,
-                                      duration: const Duration(seconds: 3),
-                                    ),
-                                  );
+                                  AppToast.showError(context, 'Stock insuficiente en ${item.producto.nombre}. Cantidad excede el stock disponible');
+                                  setModalState(() => isSubmitting = false);
                                   return;
                                 }
                               }
