@@ -31,22 +31,18 @@ class SupabaseInsumoRepository implements InsumoRepository {
 
   @override
   Future<void> create(Insumo insumo) async {
-    final userId = _client.auth.currentUser?.id;
-
+    final tenantId = await _getTenantId();
     final data = insumo.toJson();
-    data['user_id'] = userId;
-
+    data['tenant_id'] = tenantId;
     await _client.from('insumos').insert(data);
   }
 
   @override
   Future<void> update(Insumo insumo) async {
+    final tenantId = await _getTenantId();
     final data = insumo.toJson()..remove('id');
-
-    await _client
-        .from('insumos')
-        .update(data)
-        .eq('id', insumo.id);
+    data['tenant_id'] = tenantId;
+    await _client.from('insumos').update(data).eq('id', insumo.id);
   }
 
   @override
