@@ -26,9 +26,9 @@ class _RegistroScreenState extends State<RegistroScreen> {
       final password = _passCtrl.text;
       final client = Supabase.instance.client;
 
-      // 1. Validar si el superadmin ya le creó un perfil pendiente con este correo
-      final profileCheck = await client.from('profiles').select().eq('email', email).maybeSingle();
-      if (profileCheck == null) {
+      // 1. Validar si el superadmin ya le creó una invitación con este correo
+      final inviteCheck = await client.from('invitaciones').select().eq('email', email).maybeSingle();
+      if (inviteCheck == null) {
         if (!mounted) return;
         AppToast.showError(context, 'Este correo no está registrado. Pídele al administrador que cree tu empresa.');
         setState(() => _isLoading = false);
@@ -36,13 +36,10 @@ class _RegistroScreenState extends State<RegistroScreen> {
       }
 
       // 2. Registrar en Supabase Auth
+      // El Trigger de la BD se encargará mágicamente de asignarle el tenant y rol de 'dueño'
       final authRes = await client.auth.signUp(email: email, password: password);
-      final user = authRes.user;
       
-      if (user != null) {
-        // 3. Vincular el perfil pendiente con el nuevo ID real
-        await client.from('profiles').update({'id': user.id}).eq('email', email);
-        
+      if (authRes.user != null) {
         if (!mounted) return;
         AppToast.showSuccess(context, 'Cuenta activada correctamente.');
         Navigator.pop(context); // Regresa al login

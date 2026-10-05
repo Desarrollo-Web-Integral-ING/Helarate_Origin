@@ -33,12 +33,10 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
       }).select().single();
       final tenantId = tenantRes['id'];
 
-      // Crear Perfil pendiente (sin auth user id, usa UUID dummy temporal)
-      await client.from('profiles').insert({
-        'id': const Uuid().v4(),
+      // Crear Invitación
+      await client.from('invitaciones').insert({
         'nombre': _nombreCtrl.text.trim(),
         'email': _emailCtrl.text.trim(),
-        'rol': 'dueño',
         'tenant_id': tenantId,
       });
 
