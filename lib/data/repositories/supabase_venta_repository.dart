@@ -16,10 +16,12 @@ class SupabaseVentaRepository implements VentaRepository {
 
   @override
   Future<void> create(VentaModel venta) async {
+    final tenantId = await _getTenantId();
     final userId = _client.auth.currentUser?.id;
 
     final headerData = venta.toJson();
     headerData['user_id'] = userId;
+    headerData['tenant_id'] = tenantId;
     
     headerData.remove('ganancia_neta');
 
@@ -40,7 +42,7 @@ class SupabaseVentaRepository implements VentaRepository {
 
   @override
   Future<List<VentaModel>> getByDateRange(DateTime start, DateTime end) async {
-    final userId   = _client.auth.currentUser?.id;
+    final tenantId = await _getTenantId();
     final startStr = DateTime(start.year, start.month, start.day, 0, 0, 0).toIso8601String();
     final endStr   = DateTime(end.year, end.month, end.day, 23, 59, 59).toIso8601String();
 
@@ -50,8 +52,8 @@ class SupabaseVentaRepository implements VentaRepository {
         .gte('fecha', startStr)
         .lte('fecha', endStr);
 
-    if (userId != null) {
-      query = query.or('user_id.eq.$userId,user_id.is.null');
+    if (tenantId != null) {
+      query = query.eq('tenant_id', tenantId);
     }
 
     final response = await query.order('fecha', ascending: false);

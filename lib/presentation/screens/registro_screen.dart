@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_toast.dart';
-import '../blocs/auth/auth_bloc.dart';
-import '../blocs/auth/auth_event.dart';
 
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
@@ -19,7 +16,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   final _nombreCtrl = TextEditingController();
   final _empresaCtrl = TextEditingController();
   bool _obscurePass = true;
-  bool _isLoading = false;
+  final bool _isLoading = false;
 
   void _submit() {
     if (_formKey.currentState!.validate()) {

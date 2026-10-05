@@ -153,6 +153,7 @@ class SupabaseAuthRepository implements AuthRepository {
     );
   }
 
+  @override
   Future<void> signOut() async {
     final user = _client.auth.currentUser;
     if (user != null) {

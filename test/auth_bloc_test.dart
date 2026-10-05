@@ -35,6 +35,16 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<UsuarioPerfil?> signUpNewBusiness(
+    String email,
+    String password,
+    String nombre,
+    String empresa,
+  ) async {
+    return mockUser;
+  }
+
+  @override
   Future<void> signOut() async {
     mockUser = null;
   }
