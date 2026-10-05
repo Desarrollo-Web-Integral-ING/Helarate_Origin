@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_toast.dart';
-import '../blocs/auth/auth_bloc.dart';
-import '../blocs/auth/auth_event.dart';
 
 class RegistroScreen extends StatefulWidget {
   const RegistroScreen({super.key});
@@ -32,6 +29,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
       // 1. Validar si el superadmin ya le creó un perfil pendiente con este correo
       final profileCheck = await client.from('profiles').select().eq('email', email).maybeSingle();
       if (profileCheck == null) {
+        if (!mounted) return;
         AppToast.showError(context, 'Este correo no está registrado. Pídele al administrador que cree tu empresa.');
         setState(() => _isLoading = false);
         return;
@@ -45,13 +43,16 @@ class _RegistroScreenState extends State<RegistroScreen> {
         // 3. Vincular el perfil pendiente con el nuevo ID real
         await client.from('profiles').update({'id': user.id}).eq('email', email);
         
+        if (!mounted) return;
         AppToast.showSuccess(context, 'Cuenta activada correctamente.');
-        if (mounted) Navigator.pop(context); // Regresa al login
+        Navigator.pop(context); // Regresa al login
       } else {
+        if (!mounted) return;
         AppToast.showError(context, 'No se pudo crear la cuenta en Auth.');
       }
     } catch (e) {
-      if (mounted) AppToast.showError(context, 'Error: $e');
+      if (!mounted) return;
+      AppToast.showError(context, 'Error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
