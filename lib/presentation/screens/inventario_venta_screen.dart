@@ -768,22 +768,36 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                 }
                               }
 
-                              final p = Insumo(
-                                id: producto?.id ?? const Uuid().v4(),
-                                nombre: nombreCtrl.text.trim(),
-                                sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
-                                tamano: categoria == 'Vaso' ? tamano : null,
-                                precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
-                                stockActual: double.tryParse(stockCtrl.text) ?? 0.0,
-                                stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
-                                categoria: categoria,
-                                imagenPath: finalImagenPath,
-                                tipo: TipoInsumo.productoVenta,
-                                costoUnitario: 0.0,
-                                unidad: 'pzs',
-                                userId: producto?.userId,
-                                updatedAt: DateTime.now(),
-                              );
+                              final p = producto != null 
+                                  ? producto.copyWith(
+                                      nombre: nombreCtrl.text.trim(),
+                                      sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
+                                      tamano: categoria == 'Vaso' ? tamano : null,
+                                      precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
+                                      costoUnitario: 0,
+                                      stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
+                                      stockMinimo: 0,
+                                      unidad: 'pzs',
+                                      categoria: categoria,
+                                      tipo: TipoInsumo.productoVenta,
+                                      updatedAt: DateTime.now(),
+                                      imagenPath: finalImagenPath,
+                                    )
+                                  : Insumo(
+                                      id: const Uuid().v4(),
+                                      nombre: nombreCtrl.text.trim(),
+                                      sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
+                                      tamano: categoria == 'Vaso' ? tamano : null,
+                                      precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
+                                      costoUnitario: 0,
+                                      stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
+                                      stockMinimo: 0,
+                                      unidad: 'pzs',
+                                      categoria: categoria,
+                                      tipo: TipoInsumo.productoVenta,
+                                      updatedAt: DateTime.now(),
+                                      imagenPath: finalImagenPath,
+                                    );
 
                               if (isEdit) {
                                 bloc.add(UpdateInsumoEvent(p));
