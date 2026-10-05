@@ -22,8 +22,6 @@ import 'presentation/blocs/auth/auth_state.dart';
 import 'presentation/screens/superadmin_screen.dart';
 import 'presentation/screens/usuarios_screen.dart';
 import 'presentation/screens/dashboard_screen.dart';
-import 'presentation/screens/usuarios_screen.dart';
-import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
 import 'presentation/screens/ventas_screen.dart';
@@ -319,7 +317,7 @@ class _MainNavigationState extends State<MainNavigation> {
                 if (!isEmployee) ...[
                   _sidebarItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
                   const SizedBox(height: 8),
-                  if (user.rol == 'dueño' || user.rol == 'admin' || user.rol == 'superadmin') ...[
+                  if (user != null && (user.rol == 'dueño' || user.rol == 'admin' || user.rol == 'superadmin')) ...[
                     _sidebarItem(5, Icons.people_alt, Icons.people_alt_outlined, 'Usuarios'),
                     const SizedBox(height: 8),
                   ],
