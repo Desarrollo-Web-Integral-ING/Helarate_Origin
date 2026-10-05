@@ -7,6 +7,7 @@ import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 
 import '../../core/widgets/app_toast.dart';
+import 'registro_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -378,36 +379,52 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
           const SizedBox(height: 24),
-          BlocBuilder<AuthBloc, AuthState>(
-            builder: (context, state) {
-              final isLoading = state is AuthLoading;
-              return ElevatedButton(
-                onPressed: isLoading ? null : _submitForm,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                ),
-                child: isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+              BlocBuilder<AuthBloc, AuthState>(
+                builder: (context, state) {
+                  final isLoading = state is AuthLoading;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ElevatedButton(
+                        onPressed: isLoading ? null : _submitForm,
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
                         ),
-                      )
-                    : const Text(
-                        'Iniciar Sesión',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
+                        child: isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Text(
+                                'Iniciar Sesión',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                       ),
-              );
-            },
-          ),
+                      const SizedBox(height: 16),
+                      TextButton(
+                        onPressed: () {
+                          // Navigate to RegistroScreen
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (_) => const RegistroScreen()),
+                          );
+                        },
+                        child: const Text('¿No tienes cuenta? Registra tu empresa aquí'),
+                      )
+                    ],
+                  );
+                },
+              ),
         ],
       ),
     );

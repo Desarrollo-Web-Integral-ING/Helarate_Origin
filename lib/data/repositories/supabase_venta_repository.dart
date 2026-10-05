@@ -6,6 +6,14 @@ import '../../domain/repositories/venta_repository.dart';
 class SupabaseVentaRepository implements VentaRepository {
   final _client = Supabase.instance.client;
 
+  Future<String?> _getTenantId() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+    final res = await _client.from('profiles').select('tenant_id').eq('id', userId).maybeSingle();
+    return res?['tenant_id'] as String?;
+  }
+
+
   @override
   Future<void> create(VentaModel venta) async {
     final userId = _client.auth.currentUser?.id;

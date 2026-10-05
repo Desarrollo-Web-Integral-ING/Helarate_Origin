@@ -4,6 +4,7 @@ abstract class AuthRepository {
   Future<UsuarioPerfil?> signInWithEmail(String email, String password);
   Future<UsuarioPerfil?> signUpWithEmail(
       String email, String password, String nombre, String rol);
+  Future<UsuarioPerfil?> signUpNewBusiness(String email, String password, String nombre, String empresa);
   Future<void> signOut();
   Future<UsuarioPerfil?> getCurrentUser();
   Stream<UsuarioPerfil?> get onAuthStateChanges;

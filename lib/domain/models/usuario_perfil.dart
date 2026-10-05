@@ -3,6 +3,7 @@ class UsuarioPerfil {
   final String nombre;
   final String rol; // 'dueño' o 'empleado'
   final String email;
+  final String? tenantId;
   final DateTime createdAt;
   final DateTime? aceptadoAvisoAt;
 
@@ -11,6 +12,7 @@ class UsuarioPerfil {
     required this.nombre,
     required this.rol,
     this.email = '',
+    this.tenantId,
     required this.createdAt,
     this.aceptadoAvisoAt,
   });
@@ -22,12 +24,14 @@ class UsuarioPerfil {
     String? nombre,
     String? rol,
     String? email,
+    String? tenantId,
   }) {
     return UsuarioPerfil(
       id: id,
       nombre: nombre ?? this.nombre,
       rol: rol ?? this.rol,
       email: email ?? this.email,
+      tenantId: tenantId ?? this.tenantId,
       createdAt: createdAt,
       aceptadoAvisoAt: aceptadoAvisoAt,
     );
@@ -38,6 +42,7 @@ class UsuarioPerfil {
         'nombre': nombre,
         'rol': rol,
         'email': email,
+        'tenant_id': tenantId,
         'created_at': createdAt.toIso8601String(),
         'aceptado_aviso_at': aceptadoAvisoAt?.toIso8601String(),
       };
@@ -48,6 +53,7 @@ class UsuarioPerfil {
       nombre: json['nombre'] as String? ?? 'Usuario Nuevo',
       rol: json['rol'] as String? ?? 'empleado',
       email: json['email'] as String? ?? '',
+      tenantId: json['tenant_id'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
       aceptadoAvisoAt: json['aceptado_aviso_at'] != null 
           ? DateTime.parse(json['aceptado_aviso_at'] as String) 

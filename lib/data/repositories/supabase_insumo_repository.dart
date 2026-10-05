@@ -7,12 +7,20 @@ import '../../domain/repositories/insumo_repository.dart';
 class SupabaseInsumoRepository implements InsumoRepository {
   final _client = Supabase.instance.client;
 
+  Future<String?> _getTenantId() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+    final res = await _client.from('profiles').select('tenant_id').eq('id', userId).maybeSingle();
+    return res?['tenant_id'] as String?;
+  }
+
+
   @override
   Future<List<Insumo>> getAll() async {
-    final userId = _client.auth.currentUser?.id;
+    final tenantId = await _getTenantId();
     var query = _client.from('insumos').select();
-    if (userId != null) {
-      query = query.or('user_id.eq.$userId,user_id.is.null');
+    if (tenantId != null) {
+      query = query.eq('tenant_id', tenantId);
     }
     
     final response = await query.order('nombre', ascending: true);

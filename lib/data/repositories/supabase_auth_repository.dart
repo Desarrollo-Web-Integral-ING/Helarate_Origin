@@ -124,6 +124,35 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
+  
+  Future<UsuarioPerfil?> signUpNewBusiness(String email, String password, String nombre, String empresa) async {
+    final res = await _client.auth.signUp(email: email, password: password);
+    final user = res.user;
+    if (user == null) throw Exception('No se pudo crear el usuario');
+    
+    // Create tenant
+    final tenantRes = await _client.from('tenants').insert({'nombre': empresa}).select().single();
+    final tenantId = tenantRes['id'];
+
+    // Create profile
+    final profile = {
+      'id': user.id,
+      'nombre': nombre,
+      'rol': 'dueño',
+      'tenant_id': tenantId
+    };
+    await _client.from('profiles').insert(profile);
+    
+    return UsuarioPerfil(
+      id: user.id,
+      nombre: nombre,
+      rol: 'dueño',
+      email: email,
+      tenantId: tenantId as String?,
+      createdAt: DateTime.now(),
+    );
+  }
+
   Future<void> signOut() async {
     final user = _client.auth.currentUser;
     if (user != null) {
