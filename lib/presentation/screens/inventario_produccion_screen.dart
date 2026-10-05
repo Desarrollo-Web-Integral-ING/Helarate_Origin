@@ -470,7 +470,7 @@ class _InventarioProduccionScreenState
             onPressed: () {
               final val = double.tryParse(ctrl.text);
               if (val == null) return;
-              final actualizado = p.copyWith(stockActual: nueva, updatedAt: DateTime.now());
+              final actualizado = p.copyWith(stockActual: val, updatedAt: DateTime.now());
               context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
               if (mounted) Navigator.pop(context);
             },
