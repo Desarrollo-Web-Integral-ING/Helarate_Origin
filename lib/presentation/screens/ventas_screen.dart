@@ -376,8 +376,6 @@ class _VentasScreenState extends State<VentasScreen> {
   }
 
   void _showRegistrarVenta() {
-    Insumo? productoSeleccionado;
-    final cantidadCtrl = TextEditingController(text: '1');
     final montoRecibidoCtrl = TextEditingController();
     final List<_CartItem> carrito = [];
     bool isSubmitting = false;
@@ -391,43 +389,37 @@ class _VentasScreenState extends State<VentasScreen> {
           final totalIngresos = carrito.fold(0.0, (sum, i) => sum + i.subtotal);
           final totalPiezas = carrito.fold(0.0, (sum, i) => sum + i.cantidad).toInt();
 
-          void agregarAlCarrito() {
-            if (productoSeleccionado == null) {
-              AppToast.showWarning(context, 'Por favor selecciona un producto');
-              return;
+          void updateCantidad(Insumo producto, int delta) {
+            final idx = carrito.indexWhere((i) => i.producto.id == producto.id);
+            if (idx >= 0) {
+              final item = carrito[idx];
+              if (item.cantidad + delta > producto.stockActual) {
+                AppToast.showWarning(context, 'Stock insuficiente de ${producto.nombre}');
+                return;
+              }
+              if (item.cantidad + delta <= 0) {
+                carrito.removeAt(idx);
+              } else {
+                item.cantidad += delta;
+              }
+            } else if (delta > 0) {
+              if (1 > producto.stockActual) {
+                AppToast.showWarning(context, 'Stock insuficiente de ${producto.nombre}');
+                return;
+              }
+              carrito.add(_CartItem(producto: producto, cantidad: 1));
             }
-
-            final cantidad = double.tryParse(cantidadCtrl.text) ?? 1.0;
-            if (cantidad <= 0) {
-              AppToast.showWarning(context, 'Ingresa una cantidad mayor a 0');
-              return;
-            }
-
-            // Calcular cantidad ya en carrito para este producto
-            final yaEnCarrito = carrito
-                .where((i) => i.producto.id == productoSeleccionado!.id)
-                .fold(0.0, (s, i) => s + i.cantidad);
-
-            if (yaEnCarrito + cantidad > productoSeleccionado!.stockActual) {
-              AppToast.showError(context, 'Stock insuficiente. Cantidad excede el stock disponible');
-              return;
-            }
-
-            final index = carrito.indexWhere((i) => i.producto.id == productoSeleccionado!.id);
-            if (index >= 0) {
-              carrito[index].cantidad += cantidad;
-            } else {
-              carrito.add(_CartItem(producto: productoSeleccionado!, cantidad: cantidad));
-            }
-
-            cantidadCtrl.text = '1';
-            productoSeleccionado = null;
             setModalState(() {});
+          }
+
+          int getCantidad(Insumo producto) {
+            final idx = carrito.indexWhere((i) => i.producto.id == producto.id);
+            return idx >= 0 ? carrito[idx].cantidad.toInt() : 0;
           }
 
           return Container(
             constraints: BoxConstraints(
-              maxHeight: MediaQuery.of(ctx).size.height * 0.85,
+              maxHeight: MediaQuery.of(ctx).size.height * 0.90,
             ),
             padding: EdgeInsets.only(
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
@@ -439,312 +431,238 @@ class _VentasScreenState extends State<VentasScreen> {
               color: Colors.white,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.grey[300],
-                        borderRadius: BorderRadius.circular(2),
-                      ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Registrar venta (Carrito)',
-                        style: TextStyle(
-                            fontSize: 18,
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Punto de Venta',
+                      style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          color: AppTheme.textPrimary),
+                    ),
+                    if (carrito.isNotEmpty)
+                      Text(
+                        '$totalPiezas piezas',
+                        style: const TextStyle(
+                            fontSize: 14,
                             fontWeight: FontWeight.w700,
-                            color: AppTheme.textPrimary),
+                            color: AppTheme.primary),
                       ),
-                      if (carrito.isNotEmpty)
-                        Text(
-                          '$totalPiezas piezas en total',
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.primary),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  // Selector de producto
-                  DropdownButtonFormField<Insumo>(
-                    value: productoSeleccionado,
-                    decoration: const InputDecoration(labelText: 'Producto'),
-                    items: _productos
-                        .map((p) => DropdownMenuItem(
-                              value: p,
-                              child: Text(
-                                '${p.nombre}${p.sabor != null && p.sabor!.isNotEmpty ? " - " + p.sabor! : ""} (${p.stockActual.toInt()} disp.)',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ))
-                        .toList(),
-                    onChanged: (v) => setModalState(() => productoSeleccionado = v),
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: cantidadCtrl,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Cantidad',
-                            contentPadding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _productos.length,
+                    itemBuilder: (context, index) {
+                      final p = _productos[index];
+                      final cantidad = getCantidad(p);
+                      final nombreCompleto = '${p.nombre}${p.sabor != null && p.sabor!.isNotEmpty ? " - " + p.sabor! : ""}';
+                      
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: cantidad > 0 ? const Color(0xFFF4F6FF) : Colors.white,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: cantidad > 0 ? AppTheme.primary.withOpacity(0.4) : Colors.grey.shade200,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 10),
-                      ElevatedButton.icon(
-                        onPressed: isSubmitting ? null : agregarAlCarrito,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primary,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                        ),
-                        icon: const Icon(Icons.add_shopping_cart_rounded, color: Colors.white, size: 18),
-                        label: const Text('Agregar', style: TextStyle(color: Colors.white)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (carrito.isNotEmpty) ...[
-                    const Text(
-                      'Productos en esta venta:',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF9F9FB),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(color: Colors.grey.shade200),
-                      ),
-                      child: ListView.separated(
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        itemCount: carrito.length,
-                        separatorBuilder: (_, __) => const Divider(height: 1),
-                        itemBuilder: (context, idx) {
-                          final item = carrito[idx];
-                          final nombreCompleto = '${item.producto.nombre}${item.producto.sabor != null && item.producto.sabor!.isNotEmpty ? " - " + item.producto.sabor! : ""}';
-                          return Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        nombreCompleto,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize: 13,
-                                            color: AppTheme.textPrimary),
-                                      ),
-                                      Text(
-                                        '${_fmt.format(item.producto.precioVenta)} c/u · Subtotal: ${_fmt.format(item.subtotal)}',
-                                        style: const TextStyle(
-                                            fontSize: 11,
-                                            color: AppTheme.textSecondary),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove_circle_outline, size: 20),
-                                      color: Colors.grey,
-                                      onPressed: () {
-                                        setModalState(() {
-                                          if (item.cantidad > 1) {
-                                            item.cantidad--;
-                                          } else {
-                                            carrito.removeAt(idx);
-                                          }
-                                        });
-                                      },
-                                    ),
-                                    Text(
-                                      '${item.cantidad.toInt()}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700, fontSize: 14),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.add_circle_outline, size: 20),
-                                      color: AppTheme.primary,
-                                      onPressed: () {
-                                        if (item.cantidad + 1 > item.producto.stockActual) {
-                                          AppToast.showError(context, 'Stock insuficiente. Cantidad excede el stock disponible');
-                                          return;
-                                        }
-                                        setModalState(() {
-                                          item.cantidad++;
-                                        });
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete_outline, color: Colors.red, size: 20),
-                                      onPressed: () {
-                                        setModalState(() {
-                                          carrito.removeAt(idx);
-                                        });
-                                      },
-                                    ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF0F1FF),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('Total a Cobrar',
-                              style: TextStyle(
-                                  color: AppTheme.textSecondary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600)),
-                          Text(
-                            _fmt.format(totalIngresos),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.primary,
-                                fontSize: 18),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Calculadora de Cambio (Opcional)',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary),
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          flex: 3,
-                          child: TextField(
-                            controller: montoRecibidoCtrl,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: InputDecoration(
-                              labelText: 'Efectivo Recibido',
-                              prefixIcon: const Icon(Icons.attach_money, color: AppTheme.primary, size: 20),
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onChanged: (_) => setModalState(() {}),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          flex: 2,
-                          child: Builder(builder: (context) {
-                            final montoRecibido = double.tryParse(montoRecibidoCtrl.text) ?? 0.0;
-                            final cambio = montoRecibido - totalIngresos;
-                            final isError = montoRecibido > 0 && cambio < 0;
-                            final isOk = montoRecibido > 0 && cambio >= 0;
-
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                              decoration: BoxDecoration(
-                                color: isError ? Colors.red.shade50 : (isOk ? Colors.green.shade50 : Colors.grey.shade50),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(
-                                  color: isError ? Colors.red.shade200 : (isOk ? Colors.green.shade300 : Colors.grey.shade300),
-                                ),
-                              ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    isError ? 'Falta' : 'Cambio',
+                                    nombreCompleto, 
                                     style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: isError ? Colors.red.shade700 : AppTheme.textSecondary),
+                                      fontWeight: cantidad > 0 ? FontWeight.w700 : FontWeight.w600, 
+                                      fontSize: 14,
+                                      color: AppTheme.textPrimary
+                                    )
                                   ),
-                                  const SizedBox(height: 2),
                                   Text(
-                                    montoRecibido > 0 ? _fmt.format(cambio.abs()) : '\$0.00',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 15,
-                                      color: isError ? Colors.red.shade700 : (isOk ? Colors.green.shade700 : AppTheme.textPrimary),
-                                    ),
+                                    '${_fmt.format(p.precioVenta)} · Disp: ${p.stockActual.toInt()}', 
+                                    style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)
                                   ),
                                 ],
                               ),
-                            );
-                          }),
+                            ),
+                            Row(
+                              children: [
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle_outline, size: 28),
+                                  color: cantidad > 0 ? Colors.red : Colors.grey.shade300,
+                                  onPressed: cantidad > 0 ? () => updateCantidad(p, -1) : null,
+                                ),
+                                Container(
+                                  width: 30,
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    '$cantidad', 
+                                    style: TextStyle(
+                                      fontSize: 18, 
+                                      fontWeight: FontWeight.bold,
+                                      color: cantidad > 0 ? AppTheme.primary : AppTheme.textPrimary
+                                    )
+                                  ),
+                                ),
+                                IconButton(
+                                  icon: const Icon(Icons.add_circle_outline, size: 28),
+                                  color: p.stockActual > cantidad ? AppTheme.primary : Colors.grey.shade300,
+                                  onPressed: p.stockActual > cantidad ? () => updateCantidad(p, 1) : null,
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
+                      );
+                    },
+                  ),
+                ),
+                
+                const SizedBox(height: 12),
+                const Divider(),
+                
+                if (carrito.isNotEmpty) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total a Cobrar:',
+                          style: TextStyle(
+                              color: AppTheme.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w700)),
+                      Text(
+                        _fmt.format(totalIngresos),
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            color: AppTheme.primary,
+                            fontSize: 22),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        flex: 3,
+                        child: TextField(
+                          controller: montoRecibidoCtrl,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: 'Efectivo Recibido',
+                            prefixIcon: const Icon(Icons.attach_money, color: AppTheme.primary, size: 20),
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          onChanged: (_) => setModalState(() {}),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: Builder(builder: (context) {
+                          final montoRecibido = double.tryParse(montoRecibidoCtrl.text) ?? 0.0;
+                          final cambio = montoRecibido - totalIngresos;
+                          final isError = montoRecibido > 0 && cambio < 0;
+                          final isOk = montoRecibido > 0 && cambio >= 0;
+
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isError ? Colors.red.shade50 : (isOk ? Colors.green.shade50 : Colors.grey.shade50),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isError ? Colors.red.shade200 : (isOk ? Colors.green.shade300 : Colors.grey.shade300),
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isError ? 'Falta' : 'Cambio',
+                                  style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                      color: isError ? Colors.red.shade700 : AppTheme.textSecondary),
+                                ),
+                                Text(
+                                  montoRecibido > 0 ? _fmt.format(cambio.abs()) : '\$0.00',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 15,
+                                    color: isError ? Colors.red.shade700 : (isOk ? Colors.green.shade700 : AppTheme.textPrimary),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildMontoRapidoBtn('Exacto', totalIngresos, montoRecibidoCtrl, setModalState),
+                        const SizedBox(width: 8),
+                        _buildMontoRapidoBtn('\$50', 50.0, montoRecibidoCtrl, setModalState),
+                        const SizedBox(width: 8),
+                        _buildMontoRapidoBtn('\$100', 100.0, montoRecibidoCtrl, setModalState),
+                        const SizedBox(width: 8),
+                        _buildMontoRapidoBtn('\$200', 200.0, montoRecibidoCtrl, setModalState),
+                        const SizedBox(width: 8),
+                        _buildMontoRapidoBtn('\$500', 500.0, montoRecibidoCtrl, setModalState),
                       ],
                     ),
-                    const SizedBox(height: 10),
-                    SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          _buildMontoRapidoBtn('Exacto', totalIngresos, montoRecibidoCtrl, setModalState),
-                          const SizedBox(width: 8),
-                          _buildMontoRapidoBtn('\$50', 50.0, montoRecibidoCtrl, setModalState),
-                          const SizedBox(width: 8),
-                          _buildMontoRapidoBtn('\$100', 100.0, montoRecibidoCtrl, setModalState),
-                          const SizedBox(width: 8),
-                          _buildMontoRapidoBtn('\$200', 200.0, montoRecibidoCtrl, setModalState),
-                          const SizedBox(width: 8),
-                          _buildMontoRapidoBtn('\$500', 500.0, montoRecibidoCtrl, setModalState),
-                        ],
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    width: double.infinity,
-                    child: Builder(builder: (context) {
-                      final montoRecibido = double.tryParse(montoRecibidoCtrl.text) ?? 0.0;
-                      final bool canSubmit = carrito.isNotEmpty && (montoRecibido == 0 || montoRecibido >= totalIngresos);
+                  ),
+                  const SizedBox(height: 16),
+                ],
 
-                      return ElevatedButton(
-                        onPressed: (!canSubmit || isSubmitting)
-                            ? null
-                            : () {
-                                if (isSubmitting) return;
-                                setModalState(() => isSubmitting = true);
-                                // Validar stock para cada producto en el carrito por seguridad
+                SizedBox(
+                  width: double.infinity,
+                  child: Builder(builder: (context) {
+                    final montoRecibido = double.tryParse(montoRecibidoCtrl.text) ?? 0.0;
+                    final bool canSubmit = carrito.isNotEmpty && (montoRecibido == 0 || montoRecibido >= totalIngresos);
+
+                    return ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: (!canSubmit || isSubmitting)
+                          ? null
+                          : () {
+                              if (isSubmitting) return;
+                              setModalState(() => isSubmitting = true);
+                              
                               for (final item in carrito) {
                                 if (item.cantidad > item.producto.stockActual) {
-                                  AppToast.showError(context, 'Stock insuficiente en ${item.producto.nombre}. Cantidad excede el stock disponible');
+                                  AppToast.showError(context, 'Stock insuficiente en ${item.producto.nombre}');
                                   setModalState(() => isSubmitting = false);
                                   return;
                                 }
@@ -777,7 +695,6 @@ class _VentasScreenState extends State<VentasScreen> {
 
                               context.read<VentaBloc>().add(RegistrarVentaEvent(venta));
 
-                              // Decrementar stock localmente y enviar evento para cada producto del carrito
                               for (final item in carrito) {
                                 final nuevoStock = item.producto.stockActual - item.cantidad;
                                 final prodActualizado = Insumo(
@@ -806,14 +723,14 @@ class _VentasScreenState extends State<VentasScreen> {
                             },
                       child: Text(
                         carrito.isEmpty
-                            ? 'Selecciona y agrega productos'
-                            : 'Confirmar venta (${_fmt.format(totalIngresos)})',
+                            ? 'Selecciona productos'
+                            : 'Cerrar cuenta / Cobrar',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     );
                   }),
                 ),
               ],
-            ),
             ),
           );
         },
