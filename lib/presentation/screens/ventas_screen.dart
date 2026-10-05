@@ -186,14 +186,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     return Column(
       children: [
         Expanded(
-          child: GridView.builder(
+          child: ListView.builder(
             padding: const EdgeInsets.all(16),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 2,
-              childAspectRatio: 0.65,
-              crossAxisSpacing: 16,
-              mainAxisSpacing: 16,
-            ),
             itemCount: _productos.length,
             itemBuilder: (context, index) {
               final p = _productos[index];
@@ -217,83 +211,103 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                     width: 2,
                   ),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                child: Row(
                   children: [
                     Expanded(
                       flex: 4,
                       child: ClipRRect(
                         borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
                         child: hasImage
-                            ? Image.file(
-                                File(p.imagenPath!),
-                                fit: BoxFit.cover,
-                                errorBuilder: (c,e,s) => _buildPlaceholder(),
-                              )
+                            ? (p.imagenPath!.startsWith('http') 
+                                ? Image.network(
+                                    p.imagenPath!,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (c,e,s) => _buildPlaceholder(),
+                                  )
+                                : kIsWeb 
+                                    ? _buildPlaceholder() 
+                                    : Image.file(
+                                        io.File(p.imagenPath!),
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (c,e,s) => _buildPlaceholder(),
+                                      ))
                             : _buildPlaceholder(),
                       ),
                     ),
                     Expanded(
                       flex: 5,
                       child: Padding(
-                        padding: const EdgeInsets.all(10),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                        padding: const EdgeInsets.all(12),
+                        child: Row(
                           children: [
-                            Text(
-                              nombreCompleto,
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                            const Spacer(),
-                            Text(
-                              _fmt.format(p.precioVenta),
-                              style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.primary, fontSize: 16),
-                            ),
-                            Text(
-                              'Disp: ${p.stockActual.toInt()} ${p.unidad}',
-                              style: const TextStyle(color: Colors.grey, fontSize: 11),
-                            ),
-                            const SizedBox(height: 6),
-                            if (cantidad == 0)
-                              SizedBox(
-                                width: double.infinity,
-                                height: 32,
-                                child: ElevatedButton(
-                                  onPressed: p.stockActual > 0 ? () => _updateCantidad(p, 1) : null,
-                                  style: ElevatedButton.styleFrom(
-                                    padding: EdgeInsets.zero,
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                  child: const Text('Agregar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                ),
-                              )
-                            else
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  GestureDetector(
-                                    onTap: () => _updateCantidad(p, -1),
-                                    child: Container(
-                                      decoration: BoxDecoration(color: Colors.red.shade100, shape: BoxShape.circle),
-                                      padding: const EdgeInsets.all(6),
-                                      child: const Icon(Icons.remove, size: 16, color: Colors.red),
-                                    ),
+                                  Text(
+                                    nombreCompleto,
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                                   ),
-                                  Text('$cantidad', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                                  GestureDetector(
-                                    onTap: p.stockActual > cantidad ? () => _updateCantidad(p, 1) : null,
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: p.stockActual > cantidad ? AppTheme.primary.withOpacity(0.1) : Colors.grey.shade200, 
-                                        shape: BoxShape.circle
-                                      ),
-                                      padding: const EdgeInsets.all(6),
-                                      child: Icon(Icons.add, size: 16, color: p.stockActual > cantidad ? AppTheme.primary : Colors.grey),
-                                    ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _fmt.format(p.precioVenta),
+                                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.primary, fontSize: 16),
+                                  ),
+                                  Text(
+                                    'Disp: ${p.stockActual.toInt()} ${p.unidad}',
+                                    style: const TextStyle(color: Colors.grey, fontSize: 11),
                                   ),
                                 ],
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            if (cantidad == 0)
+                              ElevatedButton(
+                                onPressed: p.stockActual > 0 ? () => _updateCantidad(p, 1) : null,
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                ),
+                                child: const Text('Agregar', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                              )
+                            else
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: AppTheme.primary.withOpacity(0.05),
+                                  borderRadius: BorderRadius.circular(20)
+                                ),
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    GestureDetector(
+                                      onTap: () => _updateCantidad(p, -1),
+                                      child: Container(
+                                        decoration: BoxDecoration(color: Colors.red.shade100, shape: BoxShape.circle),
+                                        padding: const EdgeInsets.all(6),
+                                        child: const Icon(Icons.remove, size: 16, color: Colors.red),
+                                      ),
+                                    ),
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                                      child: Text('$cantidad', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                                    ),
+                                    GestureDetector(
+                                      onTap: p.stockActual > cantidad ? () => _updateCantidad(p, 1) : null,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: p.stockActual > cantidad ? AppTheme.primary.withOpacity(0.2) : Colors.grey.shade200, 
+                                          shape: BoxShape.circle
+                                        ),
+                                        padding: const EdgeInsets.all(6),
+                                        child: Icon(Icons.add, size: 16, color: p.stockActual > cantidad ? AppTheme.primary : Colors.grey),
+                                      ),
+                                    ),
+                                  ],
+                                ),
                               ),
                           ],
                         ),
