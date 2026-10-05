@@ -5,6 +5,7 @@ class VentaModel {
   final double totalCostos;
   final double gananciaNeta;
   final String? userId;
+  final String? tenantId;
   final List<DetalleVentaModel> detalles;
 
   VentaModel({
@@ -14,6 +15,7 @@ class VentaModel {
     required this.totalCostos,
     required this.gananciaNeta,
     this.userId,
+    this.tenantId,
     this.detalles = const [],
   });
 
@@ -24,6 +26,7 @@ class VentaModel {
         'total_costos': totalCostos,
         'ganancia_neta': gananciaNeta,
         'user_id': userId,
+        'tenant_id': tenantId,
       };
 
   factory VentaModel.fromJson(Map<String, dynamic> json) {
@@ -39,6 +42,7 @@ class VentaModel {
       totalCostos: (json['total_costos'] as num).toDouble(),
       gananciaNeta: (json['ganancia_neta'] as num).toDouble(),
       userId: json['user_id'] as String?,
+      tenantId: json['tenant_id'] as String?,
       detalles: detallesList,
     );
   }

@@ -16,6 +16,7 @@ class Insumo {
   final String? sabor;
   final String? tamano;
   final String? userId;
+  final String? tenantId;
   final DateTime updatedAt;
   final String? imagenPath;
 
@@ -32,9 +33,46 @@ class Insumo {
     this.sabor,
     this.tamano,
     this.userId,
+    this.tenantId,
     required this.updatedAt,
     this.imagenPath,
   });
+
+  Insumo copyWith({
+    String? id,
+    String? nombre,
+    String? unidad,
+    double? costoUnitario,
+    double? stockActual,
+    double? stockMinimo,
+    TipoInsumo? tipo,
+    double? precioVenta,
+    String? categoria,
+    String? sabor,
+    String? tamano,
+    String? userId,
+    String? tenantId,
+    DateTime? updatedAt,
+    String? imagenPath,
+  }) {
+    return Insumo(
+      id: id ?? this.id,
+      nombre: nombre ?? this.nombre,
+      unidad: unidad ?? this.unidad,
+      costoUnitario: costoUnitario ?? this.costoUnitario,
+      stockActual: stockActual ?? this.stockActual,
+      stockMinimo: stockMinimo ?? this.stockMinimo,
+      tipo: tipo ?? this.tipo,
+      precioVenta: precioVenta ?? this.precioVenta,
+      categoria: categoria ?? this.categoria,
+      sabor: sabor ?? this.sabor,
+      tamano: tamano ?? this.tamano,
+      userId: userId ?? this.userId,
+      tenantId: tenantId ?? this.tenantId,
+      updatedAt: updatedAt ?? this.updatedAt,
+      imagenPath: imagenPath ?? this.imagenPath,
+    );
+  }
 
   bool get stockBajo => stockMinimo > 0 && stockActual <= stockMinimo;
 
@@ -51,6 +89,7 @@ class Insumo {
         'sabor': sabor,
         'tamano': tamano,
         'user_id': userId,
+        'tenant_id': tenantId,
         'updated_at': updatedAt.toIso8601String(),
         'imagen_path': imagenPath,
       };
@@ -74,6 +113,7 @@ class Insumo {
       sabor: json['sabor'] as String?,
       tamano: json['tamano'] as String?,
       userId: json['user_id'] as String?,
+      tenantId: json['tenant_id'] as String?,
       updatedAt: DateTime.parse(json['updated_at'] as String),
       imagenPath: json['imagen_path'] as String?,
     );

@@ -419,7 +419,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             MaterialPageRoute(builder: (_) => const RegistroScreen()),
                           );
                         },
-                        child: const Text('¿No tienes cuenta? Registra tu empresa aquí'),
+                        child: const Text('¿Ya te dieron de alta? Activa tu cuenta aquí'),
                       )
                     ],
                   );

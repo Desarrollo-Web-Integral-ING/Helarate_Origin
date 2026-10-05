@@ -19,6 +19,7 @@ import 'presentation/blocs/dashboard/dashboard_event.dart';
 import 'presentation/blocs/auth/auth_bloc.dart';
 import 'presentation/blocs/auth/auth_event.dart';
 import 'presentation/blocs/auth/auth_state.dart';
+import 'presentation/screens/superadmin_screen.dart';
 import 'presentation/screens/dashboard_screen.dart';
 import 'presentation/screens/inventario_produccion_screen.dart';
 import 'presentation/screens/inventario_venta_screen.dart';
@@ -96,6 +97,9 @@ class NeveroApp extends StatelessWidget {
         home: BlocBuilder<AuthBloc, AuthState>(
           builder: (context, state) {
             if (state is Authenticated) {
+              if (state.usuario.rol == 'superadmin') {
+                return const SuperAdminScreen();
+              }
               return const MainNavigation();
             }
             if (state is AuthInitial) {
