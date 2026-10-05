@@ -135,6 +135,7 @@ class _MainNavigationState extends State<MainNavigation> {
     GlobalKey(),
     GlobalKey(),
     GlobalKey(),
+    GlobalKey(),
   ];
 
   late final List<Widget> _screens;
@@ -148,6 +149,7 @@ class _MainNavigationState extends State<MainNavigation> {
       InventarioVentaScreen(key: _keys[2]),
       VentasScreen(key: _keys[3]),
       EstadisticasScreen(key: _keys[4]),
+      UsuariosScreen(key: _keys[5]),
     ];
   }
 
