@@ -63,20 +63,7 @@ class _InventarioProduccionScreenState
 
   void _ajustarCantidad(Insumo p, double delta) {
     final nueva = (p.stockActual + delta).clamp(0.0, double.infinity);
-    final actualizado = Insumo(
-      id: p.id,
-      nombre: p.nombre,
-      unidad: p.unidad,
-      stockActual: nueva,
-      stockMinimo: p.stockMinimo,
-      costoUnitario: p.costoUnitario,
-      categoria: p.categoria,
-      tipo: p.tipo,
-      precioVenta: p.precioVenta,
-      userId: p.userId,
-      updatedAt: DateTime.now(),
-      imagenPath: p.imagenPath,
-    );
+    final actualizado = p.copyWith(stockActual: nueva, updatedAt: DateTime.now());
     context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
 
@@ -483,20 +470,7 @@ class _InventarioProduccionScreenState
             onPressed: () {
               final val = double.tryParse(ctrl.text);
               if (val == null) return;
-              final actualizado = Insumo(
-                id: p.id,
-                nombre: p.nombre,
-                unidad: p.unidad,
-                stockActual: val,
-                stockMinimo: p.stockMinimo,
-                costoUnitario: p.costoUnitario,
-                categoria: p.categoria,
-                tipo: p.tipo,
-                precioVenta: p.precioVenta,
-                userId: p.userId,
-                updatedAt: DateTime.now(),
-                imagenPath: p.imagenPath,
-              );
+              final actualizado = p.copyWith(stockActual: nueva, updatedAt: DateTime.now());
               context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
               if (mounted) Navigator.pop(context);
             },
