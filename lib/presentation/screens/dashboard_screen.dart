@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import '../../domain/models/insumo.dart';
@@ -257,7 +257,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     // Ajuste responsivo profesional HeroUI:
     // En pantallas anchas (Web/Tablet) usamos 4 columnas proporcionadas, en móvil 2 columnas
     final int crossAxisCount = screenWidth >= 1100 ? 4 : (screenWidth >= 600 ? 2 : 2);
-    final double childAspectRatio = screenWidth >= 1100 ? 2.1 : (screenWidth >= 800 ? 1.8 : 1.45);
+    final double childAspectRatio = screenWidth >= 1100 ? 2.1 : (screenWidth >= 800 ? 1.8 : 1.15);
 
     if (isEmployee) {
       return GridView.count(

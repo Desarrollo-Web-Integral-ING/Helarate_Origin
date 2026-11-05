@@ -1,3 +1,4 @@
+﻿import 'package:image_picker/image_picker.dart';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -214,6 +215,77 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     }
   }
 
+  Future<void> _abrirCamaraEscaner() async {
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(source: ImageSource.camera);
+      if (file == null) return;
+      final codeCtrl = TextEditingController();
+      if (!mounted) return;
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.camera_alt_rounded, color: Colors.blue),
+              SizedBox(width: 8),
+              Text('Escanear con Cmara'),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Foto capturada con xito. Ingresa o confirma el cdigo de barras detectado:'),
+              const SizedBox(height: 12),
+              TextField(
+                controller: codeCtrl,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Cdigo de Barras / QR',
+                  prefixIcon: Icon(Icons.qr_code_scanner_rounded),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final code = codeCtrl.text.trim();
+                Navigator.pop(ctx);
+                if (code.isNotEmpty) {
+                  _procesarCodigoEscaneado(code);
+                }
+              },
+              child: const Text('Buscar y Agregar'),
+            ),
+          ],
+        ),
+      );
+    } catch (e) {
+      AppToast.showError(context, 'No se pudo abrir la cmara: ' + e.toString());
+    }
+  }
+
+  void _procesarCodigoEscaneado(String code) {
+    final match = _productos.where((p) =>
+        (p.codigoBarras != null && p.codigoBarras!.trim() == code) ||
+        (p.sku != null && p.sku!.trim().toLowerCase() == code.toLowerCase()));
+    if (match.isNotEmpty) {
+      _updateCantidad(match.first, 1);
+      AppToast.showSuccess(context, 'Producto agregado: ' + match.first.nombre);
+    } else {
+      setState(() {
+        _busquedaCtrl.text = code;
+        _busqueda = code;
+      });
+      AppToast.showWarning(context, 'Buscando productos con cdigo: ' + code);
+    }
+  }
+
   void _onScanSubmit(String value) {
     final code = value.trim();
     if (code.isEmpty) return;
@@ -401,7 +473,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
             onSubmitted: _onScanSubmit,
             decoration: InputDecoration(
               hintText: _hw.scannerEnabled ? 'Buscar o escanear código de barras / QR' : 'Buscar producto',
-              prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+              prefixIcon: IconButton(icon: const Icon(Icons.qr_code_scanner_rounded), tooltip: 'Escanear con cmara', onPressed: _abrirCamaraEscaner),
               suffixIcon: _busqueda.isEmpty
                   ? null
                   : IconButton(

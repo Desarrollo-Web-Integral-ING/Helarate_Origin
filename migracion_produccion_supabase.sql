@@ -370,3 +370,4 @@ CREATE TRIGGER on_auth_user_created
 
 -- 16. RECARGAR CACHÉ DE POSTGREST
 NOTIFY pgrst, 'reload schema';
+

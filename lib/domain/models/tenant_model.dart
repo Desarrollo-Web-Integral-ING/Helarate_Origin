@@ -1,4 +1,4 @@
-class TenantModel {
+﻿class TenantModel {
   final String id;
   final String nombre;
   final String tipoNegocio;
@@ -70,6 +70,7 @@ class TenantModel {
     String? tipoNegocio,
     String? colorPrimario,
     String? logoUrl,
+    bool clearLogoUrl = false,
     String? logoIcon,
     String? moneda,
     String? direccion,
@@ -84,7 +85,7 @@ class TenantModel {
       nombre: nombre ?? this.nombre,
       tipoNegocio: tipoNegocio ?? this.tipoNegocio,
       colorPrimario: colorPrimario ?? this.colorPrimario,
-      logoUrl: logoUrl ?? this.logoUrl,
+      logoUrl: clearLogoUrl ? null : (logoUrl ?? this.logoUrl),
       logoIcon: logoIcon ?? this.logoIcon,
       moneda: moneda ?? this.moneda,
       direccion: direccion ?? this.direccion,
