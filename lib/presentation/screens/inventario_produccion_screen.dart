@@ -696,12 +696,13 @@ class _InventarioProduccionScreenState
                     ),
                   ]),
                   const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: categoria,
-                    decoration: const InputDecoration(labelText: 'Categoría'),
-                    items: _categorias.map((c) =>
-                        DropdownMenuItem(value: c, child: Text(c))).toList(),
-                    onChanged: (v) => setModal(() => categoria = v!),
+                  TextFormField(
+                    controller: categoriaCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoría (Opcional)',
+                      hintText: 'Ej. Empaque, Ingrediente, Tela, Repuesto',
+                      prefixIcon: Icon(Icons.category_outlined),
+                    ),
                   ),
                   const SizedBox(height: 20),
                    SizedBox(
