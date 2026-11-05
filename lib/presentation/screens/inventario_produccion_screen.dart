@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/permissions/permiso.dart';
+import '../widgets/permission_gate.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
@@ -499,6 +501,7 @@ class _InventarioProduccionScreenState
   }
 
   void _showForm({Insumo? producto}) async {
+    if (!puedeOAvisar(context, Permiso.insumosEditar)) return;
     await _cargarCamposPersonalizados();
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
@@ -615,6 +618,54 @@ class _InventarioProduccionScreenState
                       return null;
                     },
                   ),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: unidadCtrl,
+                        decoration: const InputDecoration(labelText: 'Unidad (pzs, kg, L...)'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: categoriaCtrl,
+                        decoration: const InputDecoration(labelText: 'Categoría'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: cantidadCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Cantidad actual'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: cantMinCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Mínimo'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: precioCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(labelText: 'Costo unitario (${Money.symbolOf(context)})'),
+                    validator: (v) {
+                      final t = (v ?? '').trim();
+                      if (t.isEmpty) return null;
+                      final n = double.tryParse(t);
+                      if (n == null || n < 0) return 'Ingresa un costo válido';
+                      return null;
+                    },
+                  ),
+
                   FormularioCamposDinamicos(
                     campos: _camposPersonalizados,
                     valores: atributosMap,
@@ -696,6 +747,7 @@ class _InventarioProduccionScreenState
   }
 
   void _confirmDelete(Insumo p) {
+    if (!puedeOAvisar(context, Permiso.insumosEditar)) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(

@@ -24,6 +24,9 @@ import '../../core/di/service_locator.dart';
 import '../../core/hardware/hardware_service.dart';
 import '../../core/hardware/hardware_settings.dart';
 import 'hardware_screen.dart';
+import '../../core/permissions/permiso.dart';
+import '../../core/permissions/permission_service.dart';
+import '../widgets/permission_gate.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class _CartItem {
@@ -67,6 +70,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
   void _onTabChange() {
     if (activeTabNotifier.value == 3) {
       _dispatchLoadVentas();
+      // Los productos se necesitan para vender y para buscar por código.
+      context.read<InventarioBloc>().add(LoadInventario());
       _focusScanner();
     }
   }
@@ -217,33 +222,86 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     }
   }
 
-  void _abrirCamaraEscaner() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BarcodeScannerScreen(
-          onScanned: (code) {
-            _procesarCodigoEscaneado(code);
-          },
-        ),
-      ),
+  // ---------- Búsqueda por código de barras / QR ----------
+
+  String _normCode(String s) => s.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
+
+  /// Compara códigos de forma tolerante: ignora espacios y mayúsculas, y trata
+  /// igual un EAN-13 y su UPC-A (cero inicial de diferencia).
+  bool _sameCode(String? stored, String scanned) {
+    if (stored == null || stored.trim().isEmpty) return false;
+    final a = _normCode(stored);
+    final b = _normCode(scanned);
+    if (a == b) return true;
+    final digits = RegExp(r'^\d+$');
+    if (digits.hasMatch(a) && digits.hasMatch(b)) {
+      return a.replaceFirst(RegExp(r'^0+'), '') == b.replaceFirst(RegExp(r'^0+'), '');
+    }
+    return false;
+  }
+
+  Insumo? _buscarPorCodigo(String code) {
+    for (final p in _productos) {
+      if (_sameCode(p.codigoBarras, code) || _sameCode(p.sku, code)) return p;
+    }
+    return null;
+  }
+
+  /// Agrega al carrito el producto que corresponde al código. Lo usan el lector
+  /// USB/Bluetooth, la cámara y el campo de búsqueda.
+  ScanOutcome _agregarPorCodigo(String code) {
+    final p = _buscarPorCodigo(code);
+    if (p == null) {
+      return ScanOutcome(found: false, title: code);
+    }
+    final antes = _getCantidad(p);
+    _updateCantidad(p, 1);
+    final ahora = _getCantidad(p);
+    final sabor = (p.sabor != null && p.sabor!.isNotEmpty) ? ' - ${p.sabor}' : '';
+    final nombre = '${p.nombre}$sabor';
+    if (ahora == antes) {
+      // _updateCantidad ya avisó que no hay stock suficiente.
+      return ScanOutcome(
+        found: true,
+        title: nombre,
+        quantity: ahora,
+        subtitle: 'Sin stock suficiente',
+      );
+    }
+    return ScanOutcome(
+      found: true,
+      title: nombre,
+      quantity: ahora,
+      subtitle: _fmt.format(p.precioVenta),
     );
   }
 
-  void _procesarCodigoEscaneado(String code) {
-    final match = _productos.where((p) =>
-        (p.codigoBarras != null && p.codigoBarras!.trim() == code) ||
-        (p.sku != null && p.sku!.trim().toLowerCase() == code.toLowerCase()));
-    if (match.isNotEmpty) {
-      _updateCantidad(match.first, 1);
-      AppToast.showSuccess(context, 'Producto agregado: ' + match.first.nombre);
-    } else {
-      setState(() {
-        _busquedaCtrl.text = code;
-        _busqueda = code;
-      });
-      AppToast.showWarning(context, 'Buscando productos con el código: ' + code);
+  Future<void> _abrirCamaraEscaner() async {
+    // Asegura que los productos estén cargados antes de escanear.
+    final inv = context.read<InventarioBloc>().state;
+    if (inv is! InventarioLoaded) {
+      context.read<InventarioBloc>().add(LoadInventario());
     }
+    final noEncontrado = await Navigator.of(context).push<String>(
+      MaterialPageRoute(
+        builder: (_) => BarcodeScannerScreen(
+          // Cada código leído se agrega a la caja; con el modo continuo la
+          // cámara sigue abierta mostrando lo que se va agregando.
+          onCode: _agregarPorCodigo,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    // En modo "un código" el escáner devuelve el código solo si NO existe.
+    if (noEncontrado != null && noEncontrado.isNotEmpty && _buscarPorCodigo(noEncontrado) == null) {
+      setState(() {
+        _busquedaCtrl.text = noEncontrado;
+        _busqueda = noEncontrado;
+      });
+      AppToast.showWarning(context, 'No hay productos con el código "$noEncontrado"',
+          title: 'Sin coincidencias');
+    }
+    _focusScanner();
   }
 
   void _onScanSubmit(String value) {
@@ -255,11 +313,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
       _busquedaFocus.requestFocus();
       return;
     }
-    final match = _productos.where((p) =>
-        (p.codigoBarras != null && p.codigoBarras!.trim() == code) ||
-        (p.sku != null && p.sku!.trim().toLowerCase() == code.toLowerCase()));
-    if (match.isNotEmpty) {
-      _updateCantidad(match.first, 1);
+    final outcome = _agregarPorCodigo(code);
+    if (outcome.found) {
       _busquedaCtrl.clear();
       setState(() => _busqueda = '');
     } else if (_productosFiltrados.isEmpty) {
@@ -1068,6 +1123,9 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
   // ================== TAB: HISTORIAL ==================
 
   Widget _buildHistorialTab(VentaState state) {
+    if (!getIt<PermissionService>().can(Permiso.ventasHistorial)) {
+      return const AccessDeniedView(permiso: Permiso.ventasHistorial);
+    }
     if (state is VentaLoading || state is VentaInitial) {
       return const AppLoader(message: 'Cargando ventas...', icon: Icons.point_of_sale_rounded);
     }
@@ -1236,9 +1294,12 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
           children: [
             Text(_fmt.format(v.totalIngresos), style: TextStyle(fontWeight: FontWeight.w700, color: context.brand, fontSize: 15)),
             const SizedBox(width: 8),
-            GestureDetector(
-              onTap: () => _confirmDelete(v),
-              child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+            IfPermitted(
+              permiso: Permiso.ventasEliminar,
+              child: GestureDetector(
+                onTap: () => _confirmDelete(v),
+                child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
+              ),
             ),
           ],
         ),
@@ -1261,6 +1322,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
   }
 
   void _confirmDelete(VentaModel v) {
+    if (!puedeOAvisar(context, Permiso.ventasEliminar)) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(

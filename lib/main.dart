@@ -32,6 +32,13 @@ import 'presentation/widgets/privacy_gate.dart';
 import 'core/widgets/indexed_stack_resume.dart';
 import 'core/utils/money.dart';
 import 'core/hardware/hardware_service.dart';
+import 'core/permissions/permiso.dart';
+import 'core/permissions/permission_service.dart';
+import 'core/widgets/app_toast.dart';
+import 'presentation/screens/hardware_screen.dart';
+import 'presentation/screens/turnos_screen.dart';
+import 'presentation/screens/permisos_screen.dart';
+import 'presentation/widgets/permission_gate.dart';
 import 'core/widgets/app_loader.dart';
 
 import 'package:flutter/foundation.dart';
@@ -115,7 +122,21 @@ class NeveroApp extends StatelessWidget {
       ],
       // Solo reconstruye el MaterialApp cuando cambia algo que afecta al tema,
       // al título, a la moneda o a la pantalla raíz. Evita trabas innecesarias.
-      child: BlocBuilder<AuthBloc, AuthState>(
+      child: BlocListener<AuthBloc, AuthState>(
+        listenWhen: (prev, next) =>
+            (prev is Authenticated) != (next is Authenticated) ||
+            (prev is Authenticated &&
+                next is Authenticated &&
+                (prev.usuario.id != next.usuario.id || prev.usuario.rol != next.usuario.rol)),
+        listener: (context, state) {
+          final perms = getIt<PermissionService>();
+          if (state is Authenticated) {
+            perms.load(state.usuario);
+          } else {
+            perms.clear();
+          }
+        },
+        child: BlocBuilder<AuthBloc, AuthState>(
         buildWhen: (prev, next) => _appKey(prev) != _appKey(next),
         builder: (context, state) {
           String appTitle = 'Punto de Venta';
@@ -169,6 +190,7 @@ class NeveroApp extends StatelessWidget {
           );
         },
       ),
+      ),
     );
   }
 
@@ -196,20 +218,22 @@ class MainNavigation extends StatefulWidget {
   State<MainNavigation> createState() => _MainNavigationState();
 }
 
+/// Destino del menú "Más" en móvil.
+class _Destino {
+  final int index; // -1 = abrir Equipos de caja
+  final IconData icon;
+  final String label;
+  const _Destino(this.index, this.icon, this.label);
+}
+
 class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
   bool _isSidebarCollapsed = false;
+  final PermissionService _perms = getIt<PermissionService>();
 
-  final _keys = [
-    GlobalKey(),
-    GlobalKey(),
-    GlobalKey(),
-    GlobalKey(),
-    GlobalKey(),
-    GlobalKey(),
-    GlobalKey(),
-    GlobalKey(),
-  ];
+  // 0 Inicio, 1 Insumos, 2 Catálogo, 3 Ventas, 4 Stats, 5 Usuarios,
+  // 6 Personalizar, 7 Campos personalizados, 8 Turnos, 9 Permisos
+  final _keys = List.generate(10, (_) => GlobalKey());
 
   late final List<Widget> _screens;
 
@@ -225,17 +249,85 @@ class _MainNavigationState extends State<MainNavigation> {
       UsuariosScreen(key: _keys[5]),
       PersonalizacionScreen(key: _keys[6]),
       CamposPersonalizadosScreen(key: _keys[7]),
+      TurnosScreen(key: _keys[8]),
+      PermisosScreen(key: _keys[9]),
     ];
   }
 
-  void _onTabTap(int index) {
+  /// Permiso que protege cada vista (Turnos y Permisos se protegen solas).
+  Permiso? _permisoDeTab(int i) {
+    switch (i) {
+      case 0:
+        return Permiso.dashboardVer;
+      case 1:
+        return Permiso.insumosVer;
+      case 2:
+        return Permiso.catalogoVer;
+      case 3:
+        return Permiso.ventasVer;
+      case 4:
+        return Permiso.estadisticasVer;
+      case 5:
+        return Permiso.usuariosVer;
+      case 6:
+      case 7:
+        return Permiso.personalizacionVer;
+      default:
+        return null;
+    }
+  }
+
+  bool _puedeVer(int i) {
+    if (i == 8) return _perms.canAny(const [Permiso.turnosPropios, Permiso.turnosAdministrar]);
+    if (i == 9) return _perms.can(Permiso.permisosAdministrar);
+    final p = _permisoDeTab(i);
+    return p != null && _perms.can(p);
+  }
+
+  int? get _primeraPermitida {
+    for (final i in const [0, 3, 1, 2, 4, 8, 5, 9, 6, 7]) {
+      if (_puedeVer(i)) return i;
+    }
+    return null;
+  }
+
+  void _irA(int index) {
     if (_currentIndex == index) return;
     setState(() => _currentIndex = index);
     activeTabNotifier.value = index;
   }
 
+  void _onTabTap(int index) {
+    if (!_puedeVer(index)) {
+      AppToast.showWarning(context, 'No tienes acceso a esta sección.', title: 'Acceso restringido');
+      return;
+    }
+    _irA(index);
+  }
+
   @override
   Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: _perms,
+      builder: (context, _) {
+        if (!_perms.cargado) {
+          return const AppSplash(message: 'Cargando permisos...');
+        }
+        final destino = _primeraPermitida;
+        if (destino == null) return const AccessDeniedView();
+
+        // Si el permiso de la vista actual se quitó, pasa a una permitida.
+        if (!_puedeVer(_currentIndex)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !_puedeVer(_currentIndex)) _irA(destino);
+          });
+        }
+        return _scaffold(context);
+      },
+    );
+  }
+
+  Widget _scaffold(BuildContext context) {
     final isWeb = MediaQuery.of(context).size.width >= 800;
     final authState = context.watch<AuthBloc>().state;
     final isEmployee =
@@ -277,27 +369,78 @@ class _MainNavigationState extends State<MainNavigation> {
               ),
               child: SafeArea(
                 child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _navItem(
-                          0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
-                      _navItem(1, Icons.inventory_2_rounded,
-                          Icons.inventory_2_outlined, 'Insumos'),
-                      _navItem(2, Icons.shopping_bag_rounded,
-                          Icons.shopping_bag_outlined, 'Catálogo'),
-                      _navItem(3, Icons.point_of_sale_rounded,
-                          Icons.point_of_sale_outlined, 'Ventas'),
-                      if (!isEmployee)
-                        _navItem(4, Icons.bar_chart_rounded,
-                            Icons.bar_chart_outlined, 'Stats'),
-                    ],
+                    children: _itemsMovil(),
                   ),
                 ),
               ),
             ),
+    );
+  }
+
+  /// Opciones de la barra inferior (solo las permitidas) + "Más".
+  List<Widget> _itemsMovil() {
+    final items = <Widget>[
+      if (_puedeVer(0)) _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+      if (_puedeVer(1)) _navItem(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Insumos'),
+      if (_puedeVer(2)) _navItem(2, Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, 'Catálogo'),
+      if (_puedeVer(3)) _navItem(3, Icons.point_of_sale_rounded, Icons.point_of_sale_outlined, 'Ventas'),
+      if (_puedeVer(4)) _navItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
+      if (_puedeVer(8)) _navItem(8, Icons.timer_rounded, Icons.timer_outlined, 'Turnos'),
+    ];
+    if (_destinosMas().isNotEmpty) items.add(_navMas());
+    // FittedBox evita desbordes en pantallas angostas.
+    return [for (final w in items) Flexible(child: FittedBox(fit: BoxFit.scaleDown, child: w))];
+  }
+
+  List<_Destino> _destinosMas() => [
+        if (_puedeVer(5)) const _Destino(5, Icons.people_alt_rounded, 'Usuarios'),
+        if (_puedeVer(9)) const _Destino(9, Icons.admin_panel_settings_rounded, 'Permisos'),
+        if (_puedeVer(6)) const _Destino(6, Icons.palette_rounded, 'Personalizar negocio'),
+        if (_puedeVer(7)) const _Destino(7, Icons.tune_rounded, 'Campos personalizados'),
+        if (_perms.can(Permiso.equiposConfigurar))
+          const _Destino(-1, Icons.print_rounded, 'Equipos de caja'),
+      ];
+
+  void _abrirMas() {
+    final destinos = _destinosMas();
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final d in destinos)
+              ListTile(
+                leading: Icon(d.icon),
+                title: Text(d.label),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  if (d.index == -1) {
+                    Navigator.push(context, MaterialPageRoute(builder: (_) => const HardwareScreen()));
+                  } else {
+                    _onTabTap(d.index);
+                  }
+                },
+              ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _navMas() {
+    final activo = const [5, 6, 7, 9].contains(_currentIndex);
+    return _navBoton(
+      activo: activo,
+      icono: activo ? Icons.grid_view_rounded : Icons.grid_view_outlined,
+      label: 'Más',
+      onTap: _abrirMas,
     );
   }
 
@@ -309,15 +452,31 @@ class _MainNavigationState extends State<MainNavigation> {
         for (var i = 0; i < _screens.length; i++)
           _TabFade(
             active: i == _currentIndex,
-            child: RepaintBoundary(child: _screens[i]),
+            child: RepaintBoundary(
+              child: _permisoDeTab(i) == null
+                  ? _screens[i] // Turnos y Permisos validan por dentro
+                  : PermissionGate(permiso: _permisoDeTab(i)!, child: _screens[i]),
+            ),
           ),
       ],
     );
   }
 
-  Widget _navItem(
-      int index, IconData activeIcon, IconData inactiveIcon, String label) {
-    final isActive = _currentIndex == index;
+  Widget _navItem(int index, IconData activeIcon, IconData inactiveIcon, String label) {
+    return _navBoton(
+      activo: _currentIndex == index,
+      icono: _currentIndex == index ? activeIcon : inactiveIcon,
+      label: label,
+      onTap: () => _onTabTap(index),
+    );
+  }
+
+  Widget _navBoton({
+    required bool activo,
+    required IconData icono,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     final authState = context.read<AuthBloc>().state;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     Color brandColor = AppTheme.primary;
@@ -327,27 +486,27 @@ class _MainNavigationState extends State<MainNavigation> {
     final primaryGradient = AppTheme.createCustomGradient(brandColor);
 
     return GestureDetector(
-      onTap: () => _onTabTap(index),
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          gradient: isActive ? primaryGradient : null,
+          gradient: activo ? primaryGradient : null,
           borderRadius: BorderRadius.circular(14),
-          border: isActive
-              ? Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1)
-              : null,
+          border: activo ? Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1) : null,
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              isActive ? activeIcon : inactiveIcon,
-              color: isActive
+              icono,
+              color: activo
                   ? Colors.white
                   : (isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary),
               size: 22,
             ),
-            if (isActive) ...[
+            if (activo) ...[
               const SizedBox(width: 8),
               Text(
                 label,

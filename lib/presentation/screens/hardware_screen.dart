@@ -420,6 +420,15 @@ class _HardwareScreenState extends State<HardwareScreen> {
             value: s.scannerFocusOnOpen,
             onChanged: s.scannerEnabled ? (v) => hw.update(s.copyWith(scannerFocusOnOpen: v)) : null,
           ),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Cámara en modo continuo'),
+            subtitle: const Text(
+                'La cámara sigue abierta y va agregando cada producto que escaneas, mostrando la lista.',
+                style: TextStyle(fontSize: 12)),
+            value: s.scannerContinuous,
+            onChanged: s.scannerEnabled ? (v) => hw.update(s.copyWith(scannerContinuous: v)) : null,
+          ),
           Row(
             children: [
               Expanded(

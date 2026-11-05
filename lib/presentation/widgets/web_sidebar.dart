@@ -11,6 +11,11 @@ import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 import '../screens/perfil_screen.dart';
 import '../screens/hardware_screen.dart';
+import '../screens/turnos_screen.dart' show kTurnosTabIndex;
+import '../screens/permisos_screen.dart' show kPermisosTabIndex;
+import '../../core/di/service_locator.dart';
+import '../../core/permissions/permiso.dart';
+import '../../core/permissions/permission_service.dart';
 
 class WebSidebar extends StatelessWidget {
   final bool isCollapsed;
@@ -30,6 +35,7 @@ class WebSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final perms = getIt<PermissionService>();
     final authState = context.watch<AuthBloc>().state;
     final user = authState is Authenticated ? authState.usuario : null;
     final tenant = authState is Authenticated ? authState.tenant : null;
@@ -122,114 +128,120 @@ class WebSidebar extends StatelessWidget {
           ),
           const SizedBox(height: 6),
 
-          // Menu navigation items
+          // Menú: cada opción aparece solo si el usuario tiene el permiso.
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              children: [
-                _sidebarItem(
-                  context,
-                  index: 0,
-                  activeIcon: Icons.grid_view_rounded,
-                  inactiveIcon: Icons.grid_view_outlined,
-                  label: 'Inicio',
-                  gradient: primaryGradient,
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 8),
-                _sidebarItem(
-                  context,
-                  index: 1,
-                  activeIcon: Icons.inventory_2_rounded,
-                  inactiveIcon: Icons.inventory_2_outlined,
-                  label: 'Insumos',
-                  gradient: primaryGradient,
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 8),
-                _sidebarItem(
-                  context,
-                  index: 2,
-                  activeIcon: Icons.shopping_bag_rounded,
-                  inactiveIcon: Icons.shopping_bag_outlined,
-                  label: 'Productos',
-                  gradient: primaryGradient,
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 8),
-                _sidebarItem(
-                  context,
-                  index: 3,
-                  activeIcon: Icons.point_of_sale_rounded,
-                  inactiveIcon: Icons.point_of_sale_outlined,
-                  label: 'Ventas',
-                  gradient: primaryGradient,
-                  isDark: isDark,
-                ),
-                const SizedBox(height: 8),
-                if (!isEmployee) ...[
-                  _sidebarItem(
+            child: ListenableBuilder(
+              listenable: perms,
+              builder: (context, _) {
+                final entradas = <Widget>[];
+
+                void agregar({
+                  required int index,
+                  required IconData activo,
+                  required IconData inactivo,
+                  required String label,
+                  required bool visible,
+                }) {
+                  if (!visible) return;
+                  entradas.add(_sidebarItem(
                     context,
-                    index: 4,
-                    activeIcon: Icons.bar_chart_rounded,
-                    inactiveIcon: Icons.bar_chart_outlined,
-                    label: 'Stats',
+                    index: index,
+                    activeIcon: activo,
+                    inactiveIcon: inactivo,
+                    label: label,
                     gradient: primaryGradient,
                     isDark: isDark,
-                  ),
-                  const SizedBox(height: 8),
-                  if (user != null &&
-                      (user.rol == 'dueño' ||
-                          user.rol == 'admin' ||
-                          user.rol == 'superadmin')) ...[
-                    _sidebarItem(
-                      context,
-                      index: 5,
-                      activeIcon: Icons.people_alt,
-                      inactiveIcon: Icons.people_alt_outlined,
-                      label: 'Usuarios',
-                      gradient: primaryGradient,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 8),
-                    _sidebarItem(
-                      context,
-                      index: 7,
-                      activeIcon: Icons.tune_rounded,
-                      inactiveIcon: Icons.tune_outlined,
-                      label: 'Campos',
-                      gradient: primaryGradient,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 8),
-                    _sidebarItem(
-                      context,
-                      index: 6,
-                      activeIcon: Icons.palette_rounded,
-                      inactiveIcon: Icons.palette_outlined,
-                      label: 'Personalizar',
-                      gradient: primaryGradient,
-                      isDark: isDark,
-                    ),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-                // Equipos de ESTA terminal: disponible para todos los roles.
-                _sidebarItem(
-                  context,
-                  index: 99,
-                  activeIcon: Icons.print_rounded,
-                  inactiveIcon: Icons.print_outlined,
-                  label: 'Equipos de caja',
-                  gradient: primaryGradient,
-                  isDark: isDark,
-                  onTap: () => Navigator.push(
+                  ));
+                  entradas.add(const SizedBox(height: 8));
+                }
+
+                agregar(
+                  index: 0,
+                  activo: Icons.grid_view_rounded,
+                  inactivo: Icons.grid_view_outlined,
+                  label: 'Inicio',
+                  visible: perms.can(Permiso.dashboardVer),
+                );
+                agregar(
+                  index: 1,
+                  activo: Icons.inventory_2_rounded,
+                  inactivo: Icons.inventory_2_outlined,
+                  label: 'Insumos',
+                  visible: perms.can(Permiso.insumosVer),
+                );
+                agregar(
+                  index: 2,
+                  activo: Icons.shopping_bag_rounded,
+                  inactivo: Icons.shopping_bag_outlined,
+                  label: 'Catálogo',
+                  visible: perms.can(Permiso.catalogoVer),
+                );
+                agregar(
+                  index: 3,
+                  activo: Icons.point_of_sale_rounded,
+                  inactivo: Icons.point_of_sale_outlined,
+                  label: 'Ventas',
+                  visible: perms.can(Permiso.ventasVer),
+                );
+                agregar(
+                  index: 4,
+                  activo: Icons.bar_chart_rounded,
+                  inactivo: Icons.bar_chart_outlined,
+                  label: 'Stats',
+                  visible: perms.can(Permiso.estadisticasVer),
+                );
+                agregar(
+                  index: kTurnosTabIndex,
+                  activo: Icons.timer_rounded,
+                  inactivo: Icons.timer_outlined,
+                  label: 'Turnos',
+                  visible: perms.canAny(const [Permiso.turnosPropios, Permiso.turnosAdministrar]),
+                );
+                agregar(
+                  index: 5,
+                  activo: Icons.people_alt,
+                  inactivo: Icons.people_alt_outlined,
+                  label: 'Usuarios',
+                  visible: perms.can(Permiso.usuariosVer),
+                );
+                agregar(
+                  index: kPermisosTabIndex,
+                  activo: Icons.admin_panel_settings_rounded,
+                  inactivo: Icons.admin_panel_settings_outlined,
+                  label: 'Permisos',
+                  visible: perms.can(Permiso.permisosAdministrar),
+                );
+                agregar(
+                  index: 6,
+                  activo: Icons.palette_rounded,
+                  inactivo: Icons.palette_outlined,
+                  label: 'Personalizar',
+                  visible: perms.can(Permiso.personalizacionVer),
+                );
+
+                // Equipos de ESTA terminal (abre otra pantalla).
+                if (perms.can(Permiso.equiposConfigurar)) {
+                  entradas.add(_sidebarItem(
                     context,
-                    MaterialPageRoute(builder: (_) => const HardwareScreen()),
-                  ),
-                ),
-                const SizedBox(height: 8),
-              ],
+                    index: 99,
+                    activeIcon: Icons.print_rounded,
+                    inactiveIcon: Icons.print_outlined,
+                    label: 'Equipos de caja',
+                    gradient: primaryGradient,
+                    isDark: isDark,
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const HardwareScreen()),
+                    ),
+                  ));
+                  entradas.add(const SizedBox(height: 8));
+                }
+
+                return ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  children: entradas,
+                );
+              },
             ),
           ),
 

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/permissions/permiso.dart';
+import '../widgets/permission_gate.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
@@ -56,6 +58,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   }
 
   void _showInviteModal() {
+    if (!puedeOAvisar(context, Permiso.usuariosAdministrar)) return;
     final formKey = GlobalKey<FormState>();
     final nombreCtrl = TextEditingController();
     final emailCtrl = TextEditingController();
@@ -145,11 +148,14 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
     return Scaffold(
       // backgroundColor eliminado para respetar scaffoldBackgroundColor del tema
       appBar: AppBar(title: const Text('Usuarios y Empleados')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showInviteModal,
-        backgroundColor: context.brand,
-        icon: const Icon(Icons.person_add),
-        label: const Text('Nuevo'),
+      floatingActionButton: IfPermitted(
+        permiso: Permiso.usuariosAdministrar,
+        child: FloatingActionButton.extended(
+          onPressed: _showInviteModal,
+          backgroundColor: context.brand,
+          icon: const Icon(Icons.person_add),
+          label: const Text('Nuevo'),
+        ),
       ),
       body: _isLoading
           ? const AppLoader()

@@ -1,26 +1,59 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import '../../core/di/service_locator.dart';
+import '../../core/hardware/hardware_service.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/camera_access_api.dart';
 
+/// Resultado de procesar un código leído en modo "caja" (continuo).
+class ScanOutcome {
+  final bool found;
+  final String title; // nombre del producto, o el código si no existe
+  final int quantity; // cantidad actual en la caja
+  final String? subtitle;
+
+  const ScanOutcome({
+    required this.found,
+    required this.title,
+    this.quantity = 0,
+    this.subtitle,
+  });
+}
+
+class _ScanEntry {
+  final String code;
+  ScanOutcome outcome;
+  int times;
+  _ScanEntry(this.code, this.outcome) : times = 1;
+}
+
 /// Escáner con la cámara del dispositivo (códigos de barras y QR).
+///
+/// Dos formas de uso:
+///  - Simple (formularios): se lee UN código, la pantalla se cierra sola y
+///    devuelve el valor con Navigator.pop. Quien la abre NO debe hacer pop.
+///  - Caja ([onCode]): cada código se procesa al instante (p. ej. se agrega al
+///    carrito) y, con el modo continuo activo, la cámara sigue abierta mostrando
+///    lo que se va agregando.
 ///
 /// Pide el permiso de cámara de forma explícita en Android/iOS. En el
 /// navegador el aviso de permiso lo muestra el propio navegador al abrir la
 /// cámara (requiere HTTPS o localhost).
 class BarcodeScannerScreen extends StatefulWidget {
-  /// Opcional. La pantalla se cierra sola UNA vez al leer un código y devuelve
-  /// el valor con Navigator.pop, así que quien la abre no debe hacer pop.
+  /// Opcional. Se llama una vez al leer el código (modo simple).
   final void Function(String code)? onScanned;
 
-  const BarcodeScannerScreen({super.key, this.onScanned});
+  /// Modo caja: procesa cada código y devuelve qué pasó para mostrarlo.
+  final ScanOutcome Function(String code)? onCode;
+
+  const BarcodeScannerScreen({super.key, this.onScanned, this.onCode});
 
   @override
   State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
 }
-
 enum _CamState {
   checking,
   ready,
@@ -41,6 +74,12 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   late final Animation<double> _laserPosition;
   bool _hasScanned = false;
   _CamState _camState = _CamState.checking;
+  late bool _continuous;
+  final List<_ScanEntry> _session = [];
+  final Map<String, DateTime> _lastSeen = {};
+  String? _flashText;
+  bool _flashOk = true;
+  int _flashToken = 0;
   String? _detail; // texto técnico del último fallo (para diagnóstico)
 
   bool get _isMobileOs =>
@@ -52,8 +91,12 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     super.initState();
     // El controlador se inicia solo al montarse MobileScanner, y ese widget
     // únicamente se construye cuando el permiso ya está concedido.
+    _continuous = widget.onCode != null &&
+        getIt<HardwareService>().settings.scannerContinuous;
     _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.noDuplicates,
+      // Los duplicados se filtran aquí (por tiempo) para poder sumar el mismo
+      // producto escaneándolo varias veces.
+      detectionSpeed: DetectionSpeed.normal,
       // En laptops/PC no existe cámara trasera; solo se pide en móviles.
       facing: _isMobileOs ? CameraFacing.back : CameraFacing.front,
       torchEnabled: false,
@@ -120,6 +163,76 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     super.dispose();
   }
 
+  void _onDetect(BarcodeCapture capture) {
+    for (final barcode in capture.barcodes) {
+      final value = barcode.rawValue?.trim();
+      if (value == null || value.isEmpty) continue;
+      _handleCode(value);
+      break;
+    }
+  }
+
+  void _handleCode(String code) {
+    if (_hasScanned) return;
+    if (widget.onCode == null) {
+      _finish(code);
+      return;
+    }
+    if (!_continuous) {
+      // Modo caja sin continuo: se procesa un código y se cierra.
+      _hasScanned = true;
+      final outcome = widget.onCode!(code);
+      HapticFeedback.mediumImpact();
+      widget.onScanned?.call(code);
+      // Devuelve el código solo si NO se encontró (para dejarlo en el buscador).
+      Navigator.of(context).pop(outcome.found ? null : code);
+      return;
+    }
+    // Continuo: ignora la misma lectura repetida en menos de 1.5 s.
+    final now = DateTime.now();
+    final last = _lastSeen[code];
+    if (last != null && now.difference(last) < const Duration(milliseconds: 1500)) {
+      _lastSeen[code] = now;
+      return;
+    }
+    _lastSeen[code] = now;
+
+    final outcome = widget.onCode!(code);
+    outcome.found ? HapticFeedback.mediumImpact() : HapticFeedback.heavyImpact();
+    SystemSound.play(SystemSoundType.click);
+    if (!mounted) return;
+    setState(() {
+      final idx = _session.indexWhere((e) => e.code == code);
+      if (idx >= 0) {
+        final e = _session.removeAt(idx);
+        e.outcome = outcome;
+        e.times++;
+        _session.insert(0, e);
+      } else {
+        _session.insert(0, _ScanEntry(code, outcome));
+      }
+    });
+    _flash(outcome.found ? ' · x' : 'No encontrado: ', outcome.found);
+  }
+
+  void _flash(String text, bool ok) {
+    final token = ++_flashToken;
+    setState(() {
+      _flashText = text;
+      _flashOk = ok;
+    });
+    Future.delayed(const Duration(milliseconds: 900), () {
+      if (mounted && token == _flashToken) setState(() => _flashText = null);
+    });
+  }
+
+  Future<void> _toggleContinuous() async {
+    final hw = getIt<HardwareService>();
+    final next = !_continuous;
+    setState(() => _continuous = next);
+    await hw.update(hw.settings.copyWith(scannerContinuous: next));
+  }
+
   /// Entrega el código y cierra SOLO el escáner (un único pop).
   void _finish(String code) {
     if (_hasScanned || !mounted) return;
@@ -153,7 +266,13 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       ),
     );
     ctrl.dispose();
-    if (code != null && code.isNotEmpty) _finish(code);
+    if (code == null || code.isEmpty) return;
+    if (widget.onCode != null && _continuous) {
+      _lastSeen.remove(code);
+      _handleCode(code);
+    } else {
+      _handleCode(code);
+    }
   }
 
   /// Panel de problema con instrucciones claras y acciones.
@@ -407,9 +526,12 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     final size = MediaQuery.of(context).size;
     final scanWindowWidth = (size.width * 0.78).clamp(220.0, 520.0);
     const scanWindowHeight = 180.0;
+    final showPanel = widget.onCode != null && _continuous;
+    final panelH = showPanel ? (size.height * 0.40).clamp(190.0, 330.0) : 0.0;
+    final windowTop = ((size.height - panelH - scanWindowHeight) / 2 - 10).clamp(78.0, double.infinity);
     final scanWindow = Rect.fromLTWH(
       (size.width - scanWindowWidth) / 2,
-      (size.height - scanWindowHeight) / 2 - 30,
+      windowTop,
       scanWindowWidth,
       scanWindowHeight,
     );
@@ -423,16 +545,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             controller: _controller,
             scanWindow: scanWindow,
             errorBuilder: (context, error) => _buildCameraError(error),
-            onDetect: (BarcodeCapture capture) {
-              if (_hasScanned) return;
-              for (final barcode in capture.barcodes) {
-                final value = barcode.rawValue;
-                if (value != null && value.isNotEmpty) {
-                  _finish(value);
-                  break;
-                }
-              }
-            },
+            onDetect: _onDetect,
           ),
 
           // 2. Overlay oscuro con ventana recortada
@@ -493,6 +606,21 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                   ),
                   Row(
                     children: [
+                      if (widget.onCode != null) ...[
+                        FilterChip(
+                          selected: _continuous,
+                          onSelected: (_) => _toggleContinuous(),
+                          avatar: Icon(Icons.playlist_add_check_rounded,
+                              size: 18, color: _continuous ? Colors.white : Colors.white70),
+                          label: const Text('Continuo'),
+                          labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+                          backgroundColor: Colors.black.withValues(alpha: 0.5),
+                          selectedColor: AppTheme.brandPrimary,
+                          showCheckmark: false,
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                        ),
+                        const SizedBox(width: 10),
+                      ],
                       IconButton.filled(
                         style: IconButton.styleFrom(
                           backgroundColor: Colors.black.withValues(alpha: 0.5),
@@ -536,7 +664,181 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
               ),
             ),
           ),
+
+          // 5. Aviso breve de lo que se acaba de escanear
+          if (_flashText != null)
+            Positioned(
+              left: 24,
+              right: 24,
+              top: scanWindow.bottom + 14,
+              child: IgnorePointer(
+                child: Center(
+                  child: AnimatedOpacity(
+                    opacity: 1,
+                    duration: const Duration(milliseconds: 150),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                      decoration: BoxDecoration(
+                        color: (_flashOk ? const Color(0xFF16A34A) : const Color(0xFFDC2626)),
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(_flashOk ? Icons.check_circle_rounded : Icons.error_rounded,
+                              color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              _flashText!,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+
+          // 6. Lista de lo que se va agregando (modo continuo)
+          if (showPanel) _buildSessionPanel(panelH),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSessionPanel(double height) {
+    final found = _session.where((e) => e.outcome.found).toList();
+    final piezas = found.fold<int>(0, (s, e) => s + e.outcome.quantity);
+
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: height,
+      child: Container(
+        decoration: BoxDecoration(
+          color: const Color(0xFF0B1220).withValues(alpha: 0.96),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
+          border: Border(top: BorderSide(color: Colors.white.withValues(alpha: 0.12))),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 12, 6),
+                child: Row(
+                  children: [
+                    const Icon(Icons.layers_rounded, color: Colors.white70, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        found.isEmpty
+                            ? 'Escanea productos: se agregan solos'
+                            : 'En caja · ${found.length} productos · $piezas pzs',
+                        style: const TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13.5),
+                      ),
+                    ),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.brandPrimary,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        minimumSize: const Size(0, 38),
+                      ),
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: const Icon(Icons.check_rounded, size: 18),
+                      label: const Text('Listo'),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: _session.isEmpty
+                    ? const Center(
+                        child: Text(
+                          'Apunta la cámara al código de barras o QR',
+                          style: TextStyle(color: Colors.white38, fontSize: 12.5),
+                        ),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+                        itemCount: _session.length,
+                        itemBuilder: (_, i) {
+                          final e = _session[i];
+                          final o = e.outcome;
+                          final latest = i == 0;
+                          final color = o.found ? const Color(0xFF22C55E) : const Color(0xFFEF4444);
+                          return Container(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+                            decoration: BoxDecoration(
+                              color: latest
+                                  ? color.withValues(alpha: 0.16)
+                                  : Colors.white.withValues(alpha: 0.05),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: latest ? color.withValues(alpha: 0.6) : Colors.transparent,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(o.found ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                                    color: color, size: 20),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        o.found ? o.title : 'Código no encontrado',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: latest ? FontWeight.w800 : FontWeight.w600,
+                                          fontSize: latest ? 14.5 : 13,
+                                        ),
+                                      ),
+                                      Text(
+                                        o.found ? (o.subtitle ?? e.code) : e.code,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(color: Colors.white54, fontSize: 11.5),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (o.found)
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: color.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Text(
+                                      'x${o.quantity}',
+                                      style: TextStyle(
+                                          color: color,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: latest ? 17 : 14),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

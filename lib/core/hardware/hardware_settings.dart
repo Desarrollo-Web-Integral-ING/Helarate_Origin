@@ -36,6 +36,8 @@ class HardwareSettings {
   final bool scannerAutoAdd;
   final int scannerMinLength;
   final bool scannerFocusOnOpen;
+  /// Cámara: seguir escaneando varios productos sin cerrarla.
+  final bool scannerContinuous;
 
   const HardwareSettings({
     this.printerConnection = PrinterConnection.none,
@@ -52,6 +54,7 @@ class HardwareSettings {
     this.scannerAutoAdd = true,
     this.scannerMinLength = 4,
     this.scannerFocusOnOpen = true,
+    this.scannerContinuous = true,
   });
 
   bool get printerConfigured {
@@ -80,6 +83,7 @@ class HardwareSettings {
     bool? scannerAutoAdd,
     int? scannerMinLength,
     bool? scannerFocusOnOpen,
+    bool? scannerContinuous,
   }) {
     return HardwareSettings(
       printerConnection: printerConnection ?? this.printerConnection,
@@ -100,6 +104,7 @@ class HardwareSettings {
       scannerAutoAdd: scannerAutoAdd ?? this.scannerAutoAdd,
       scannerMinLength: scannerMinLength ?? this.scannerMinLength,
       scannerFocusOnOpen: scannerFocusOnOpen ?? this.scannerFocusOnOpen,
+      scannerContinuous: scannerContinuous ?? this.scannerContinuous,
     );
   }
 
@@ -128,6 +133,7 @@ class HardwareSettings {
       scannerAutoAdd: prefs.getBool('${_p}scanner_auto_add') ?? true,
       scannerMinLength: prefs.getInt('${_p}scanner_min_length') ?? 4,
       scannerFocusOnOpen: prefs.getBool('${_p}scanner_focus') ?? true,
+      scannerContinuous: prefs.getBool('${_p}scanner_continuous') ?? true,
     );
   }
 
@@ -155,5 +161,6 @@ class HardwareSettings {
     await prefs.setBool('${_p}scanner_auto_add', scannerAutoAdd);
     await prefs.setInt('${_p}scanner_min_length', scannerMinLength);
     await prefs.setBool('${_p}scanner_focus', scannerFocusOnOpen);
+    await prefs.setBool('${_p}scanner_continuous', scannerContinuous);
   }
 }

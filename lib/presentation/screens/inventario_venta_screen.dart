@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/permissions/permiso.dart';
+import '../widgets/permission_gate.dart';
 import '../widgets/barcode_scanner_screen.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
@@ -131,7 +133,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
       appBar: AppBar(
         title: const Text('Catálogo de Productos'),
         actions: [
-          IconButton(icon: const Icon(Icons.add_rounded), onPressed: () => _showForm()),
+          IfPermitted(permiso: Permiso.catalogoEditar, child: IconButton(icon: const Icon(Icons.add_rounded), onPressed: () => _showForm())),
         ],
       ),
       body: BlocBuilder<InventarioBloc, InventarioState>(
@@ -536,6 +538,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   }
 
   void _showForm({Insumo? producto}) async {
+    if (!puedeOAvisar(context, Permiso.catalogoEditar)) return;
     await _cargarCamposPersonalizados();
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
@@ -654,6 +657,84 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                     },
                   ),
 
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: precioCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(labelText: 'Precio de venta (${Money.symbolOf(context)})'),
+                        validator: (v) {
+                          final n = double.tryParse((v ?? '').trim());
+                          if (n == null || n < 0) return 'Ingresa un precio válido';
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: categoriaCtrl,
+                        decoration: const InputDecoration(labelText: 'Categoría'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: stockCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Cantidad actual'),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: TextFormField(
+                        controller: stockMinCtrl,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: const InputDecoration(labelText: 'Mínimo'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: codigoCtrl,
+                        decoration: InputDecoration(
+                          labelText: 'Código de barras / QR',
+                          hintText: 'Escanéalo o escríbelo',
+                          prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+                          suffixIcon: IconButton(
+                            tooltip: 'Escanear con la cámara',
+                            icon: const Icon(Icons.photo_camera_rounded),
+                            onPressed: () async {
+                              // El escáner se cierra solo y devuelve el código;
+                              // el formulario sigue abierto con el campo relleno.
+                              final code = await Navigator.of(context).push<String>(
+                                MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+                              );
+                              if (code != null && code.isNotEmpty) {
+                                codigoCtrl.text = code;
+                                codigoCtrl.selection = TextSelection.collapsed(offset: code.length);
+                              }
+                            },
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: skuCtrl,
+                        decoration: const InputDecoration(labelText: 'SKU (opcional)'),
+                      ),
+                    ),
+                  ]),
+
                   FormularioCamposDinamicos(
                     campos: _camposPersonalizados,
                     valores: atributosMap,
@@ -756,6 +837,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   }
 
   void _confirmDelete(Insumo p) {
+    if (!puedeOAvisar(context, Permiso.catalogoEditar)) return;
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
