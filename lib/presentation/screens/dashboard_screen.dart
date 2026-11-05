@@ -139,6 +139,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildAppBar() {
     final authState = context.watch<AuthBloc>().state;
+    final user = authState is Authenticated ? authState.usuario : null;
     String nombreNegocio = 'Mi Negocio';
     Color brandColor = context.brand;
     if (authState is Authenticated && authState.tenant != null) {
@@ -162,27 +163,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 children: [
                   Builder(
                     builder: (context) {
-                      final isMobile = MediaQuery.of(context).size.width < 800;
-                      final user = authState is Authenticated ? authState.usuario : null;
                       final tenant = authState is Authenticated ? authState.tenant : null;
-                      
-                      if (isMobile && user != null) {
-                        return GestureDetector(
-                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PerfilScreen())),
-                          child: Container(
-                            width: 44,
-                            height: 44,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              border: Border.all(color: Colors.white, width: 2),
-                              boxShadow: [
-                                BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
-                              ],
-                            ),
-                            child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 44, png: user.avatarPng),
-                          ),
-                        );
-                      }
                       
                       if (tenant?.logoUrl != null && tenant!.logoUrl!.isNotEmpty) {
                         return Container(
@@ -222,28 +203,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     },
                   ),
                   const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        nombreNegocio,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          nombreNegocio,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
-                      ),
-                      Text(
-                        DateFormat('EEEE, d MMM', 'es_MX').format(DateTime.now()),
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 13,
+                        Text(
+                          DateFormat('EEEE, d MMM', 'es_MX').format(DateTime.now()),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 12,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   // Botón flotante HeroUI para cambio rápido de tema Claro / Oscuro con animación
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 300),
@@ -289,10 +276,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     },
                   ),
                   if (MediaQuery.of(context).size.width < 800) ...[
-                    IconButton(
-                      icon: const Icon(Icons.account_circle_rounded, color: Colors.white),
-                      tooltip: 'Mi Perfil / ARCO',
-                      onPressed: () {
+                    GestureDetector(
+                      onTap: () {
                         final auth = context.read<AuthBloc>().state;
                         if (auth is Authenticated) {
                           Navigator.push(
@@ -301,6 +286,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           );
                         }
                       },
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 1.5),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 4),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: user != null
+                              ? UserAvatar(
+                                  style: user.avatarStyle,
+                                  seed: user.avatarSeed ?? '',
+                                  name: user.nombre,
+                                  size: 36,
+                                  png: user.avatarPng,
+                                )
+                              : const Icon(Icons.person, color: Colors.white, size: 20),
+                        ),
+                      ),
                     ),
                     IconButton(
                       icon: const Icon(Icons.logout_rounded, color: Colors.white),
