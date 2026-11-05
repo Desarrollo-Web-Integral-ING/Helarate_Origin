@@ -5,6 +5,7 @@ enum TipoDatoCampo {
   numero,
   fecha,
   opciones,
+  codigoBarras,
 }
 
 class CampoPersonalizado {

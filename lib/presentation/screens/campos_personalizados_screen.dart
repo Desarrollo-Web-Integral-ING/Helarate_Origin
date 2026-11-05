@@ -115,6 +115,7 @@ class _CamposPersonalizadosScreenState extends State<CamposPersonalizadosScreen>
                       DropdownMenuItem(value: TipoDatoCampo.numero, child: Text('Número / Cantidad')),
                       DropdownMenuItem(value: TipoDatoCampo.fecha, child: Text('Fecha')),
                       DropdownMenuItem(value: TipoDatoCampo.opciones, child: Text('Lista Desplegable (Dropdown)')),
+                      DropdownMenuItem(value: TipoDatoCampo.codigoBarras, child: Text('Código de Barras / QR (Con Escáner)')),
                     ],
                     onChanged: (val) {
                       if (val != null) setModalState(() => tipo = val);
@@ -371,6 +372,8 @@ class _CamposPersonalizadosScreenState extends State<CamposPersonalizadosScreen>
         return Icons.calendar_today_rounded;
       case TipoDatoCampo.opciones:
         return Icons.arrow_drop_down_circle_outlined;
+      case TipoDatoCampo.codigoBarras:
+        return Icons.qr_code_scanner_rounded;
     }
   }
 
@@ -384,6 +387,8 @@ class _CamposPersonalizadosScreenState extends State<CamposPersonalizadosScreen>
         return 'Fecha';
       case TipoDatoCampo.opciones:
         return 'Opciones';
+      case TipoDatoCampo.codigoBarras:
+        return 'Código de Barras / QR';
     }
   }
 

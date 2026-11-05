@@ -1,4 +1,4 @@
-﻿class UsuarioPerfil {
+class UsuarioPerfil {
   final String id;
   final String nombre;
   final String rol; // 'dueño' o 'empleado'
@@ -29,7 +29,8 @@
         ? avatarSeed!.trim()
         : (nombre.isNotEmpty ? nombre : id);
     final encoded = Uri.encodeComponent(seed);
-    return 'https://images.weserv.nl/?url=api.dicebear.com/7.x/' + avatarStyle + '/png?seed=' + encoded + '&output=png';
+    final rawUrl = 'https://api.dicebear.com/9.x/' + avatarStyle + '/png?seed=' + encoded;
+    return 'https://wsrv.nl/?url=' + Uri.encodeComponent(rawUrl) + '&output=png';
   }
 
   UsuarioPerfil copyWith({

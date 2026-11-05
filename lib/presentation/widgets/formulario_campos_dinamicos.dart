@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../domain/models/campo_personalizado.dart';
+import 'barcode_scanner_screen.dart';
 
 class FormularioCamposDinamicos extends StatelessWidget {
   final List<CampoPersonalizado> campos;
@@ -137,6 +139,54 @@ class FormularioCamposDinamicos extends StatelessWidget {
                       ),
                     ),
                   ),
+                ),
+              );
+
+            case TipoDatoCampo.codigoBarras:
+              final controller = TextEditingController(text: valorActual?.toString() ?? '');
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: controller,
+                        decoration: InputDecoration(
+                          labelText: '${campo.nombre}${campo.obligatorio ? " *" : ""}',
+                          hintText: 'Escanea o escribe el código',
+                          prefixIcon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                        ),
+                        validator: (v) {
+                          if (campo.obligatorio && (v == null || v.trim().isEmpty)) {
+                            return 'Este campo es obligatorio';
+                          }
+                          return null;
+                        },
+                        onChanged: (val) => onValorChanged(campo.nombre, val.trim()),
+                      ),
+                    ),
+                    if (!kIsWeb) ...[
+                      const SizedBox(width: 8),
+                      IconButton.filledTonal(
+                        icon: const Icon(Icons.camera_alt_rounded),
+                        tooltip: 'Escanear con cámara',
+                        onPressed: () async {
+                          final code = await Navigator.push<String>(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => BarcodeScannerScreen(
+                                onScanned: (c) => Navigator.pop(context, c),
+                              ),
+                            ),
+                          );
+                          if (code != null && code.isNotEmpty) {
+                            controller.text = code;
+                            onValorChanged(campo.nombre, code);
+                          }
+                        },
+                      ),
+                    ],
+                  ],
                 ),
               );
           }

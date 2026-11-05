@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:flutter/services.dart';
@@ -489,7 +489,8 @@ class _PerfilScreenState extends State<PerfilScreen> {
               itemBuilder: (context, idx) {
                 final style = _avatarStyles[idx];
                 final isSelected = perfil.avatarStyle == style['id'];
-                final demoUrl = 'https://images.weserv.nl/?url=api.dicebear.com/7.x/' + style['id']! + '/png?seed=' + Uri.encodeComponent(perfil.nombre) + '&output=png';
+                final rawDemo = 'https://api.dicebear.com/9.x/' + style['id']! + '/png?seed=' + Uri.encodeComponent(perfil.nombre);
+                final demoUrl = 'https://wsrv.nl/?url=' + Uri.encodeComponent(rawDemo) + '&output=png';
 
                 return GestureDetector(
                   onTap: () => _cambiarAvatarDiceBear(style['id']!, perfil.nombre),
