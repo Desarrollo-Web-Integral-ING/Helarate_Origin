@@ -391,7 +391,7 @@ CREATE TABLE IF NOT EXISTS public.campos_personalizados (
 ALTER TABLE public.insumos ADD COLUMN IF NOT EXISTS atributos JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE public.campos_personalizados ENABLE ROW LEVEL SECURITY;
 
-DO \$\$
+DO $$
 BEGIN
     IF NOT EXISTS (
         SELECT 1 FROM pg_policies WHERE tablename = 'campos_personalizados' AND policyname = 'campos_personalizados_tenant_isolation'
@@ -401,4 +401,4 @@ BEGIN
                 tenant_id = (SELECT tenant_id FROM public.profiles WHERE id = auth.uid())
             );
     END IF;
-END \$\$;
+END $$;
