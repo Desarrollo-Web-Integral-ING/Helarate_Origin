@@ -311,6 +311,7 @@ class _PersonalizacionScreenState extends State<PersonalizacionScreen> {
   }
 
   Widget _buildLogoUploadCard(Color brandColor) {
+    final isMobile = MediaQuery.of(context).size.width < 500;
     return HeroCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -458,7 +459,7 @@ class _PersonalizacionScreenState extends State<PersonalizacionScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: MediaQuery.of(context).size.width < 500 ? 3 : 6,
+              crossAxisCount: isMobile ? 3 : 6,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
               childAspectRatio: 1.1,
