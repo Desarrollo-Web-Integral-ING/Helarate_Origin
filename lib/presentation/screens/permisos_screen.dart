@@ -6,15 +6,16 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_loader.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../domain/models/asistencia.dart';
+import '../../domain/models/rol_personalizado.dart';
 import '../../domain/repositories/turnos_repository.dart';
 import '../widgets/permission_gate.dart';
 
 /// Índice de esta pantalla en la navegación principal (main.dart).
 const int kPermisosTabIndex = 9;
 
-/// Administración de permisos: qué puede hacer cada rol y cada usuario.
-/// Los cambios se guardan en la base de datos (rol_permisos / usuario_permisos)
-/// y también los hace cumplir el servidor con RLS.
+/// Administración de roles y permisos: qué puede hacer cada rol (incluidos los
+/// roles que crea el dueño) y cada usuario. Los cambios se guardan en la base
+/// de datos y también los hace cumplir el servidor con RLS.
 class PermisosScreen extends StatelessWidget {
   const PermisosScreen({super.key});
 
@@ -26,10 +27,10 @@ class PermisosScreen extends StatelessWidget {
         length: 2,
         child: Scaffold(
           appBar: AppBar(
-            title: const Text('Permisos'),
+            title: const Text('Roles y permisos'),
             bottom: const TabBar(
               tabs: [
-                Tab(icon: Icon(Icons.admin_panel_settings_rounded), text: 'Por rol'),
+                Tab(icon: Icon(Icons.admin_panel_settings_rounded), text: 'Roles'),
                 Tab(icon: Icon(Icons.person_rounded), text: 'Por usuario'),
               ],
             ),
@@ -66,8 +67,21 @@ Widget _encabezadoGrupo(BuildContext context, String grupo) => Padding(
       ),
     );
 
+String _mensajeError(Object e) {
+  final s = e.toString().toLowerCase();
+  if (s.contains('roles_custom') &&
+      (s.contains('does not exist') || s.contains('pgrst205') || s.contains('schema cache'))) {
+    return 'Faltan las tablas de roles. Ejecuta migracion_roles_personalizados.sql en la base de datos.';
+  }
+  if (s.contains('rol_permisos') &&
+      (s.contains('does not exist') || s.contains('pgrst205') || s.contains('schema cache'))) {
+    return 'Faltan las tablas de permisos. Ejecuta migracion_turnos_permisos.sql en la base de datos.';
+  }
+  return e.toString().replaceAll('Exception: ', '');
+}
+
 // ======================================================================
-// POR ROL
+// ROLES (base + personalizados)
 // ======================================================================
 
 class _PorRolTab extends StatefulWidget {
@@ -80,20 +94,34 @@ class _PorRolTab extends StatefulWidget {
 class _PorRolTabState extends State<_PorRolTab> {
   final PermissionService _perms = getIt<PermissionService>();
 
-  String _rol = Permiso.rolesEditables.first;
-  Map<Permiso, bool> _excepciones = {};
+  String _rol = 'empleado';
+  Map<Permiso, bool> _excepciones = {}; // solo roles base
+  Set<Permiso> _permisosLocal = {}; // solo roles personalizados
+  int? _personasConRol;
   bool _cargando = true;
   String? _error;
 
   String? get _tenantId => _perms.usuario?.tenantId;
+  RolPersonalizado? get _custom => _perms.rolPersonalizado(_rol);
 
   @override
   void initState() {
     super.initState();
-    _cargar();
+    _perms.addListener(_onPerms);
+    _iniciar();
   }
 
-  Future<void> _cargar() async {
+  @override
+  void dispose() {
+    _perms.removeListener(_onPerms);
+    super.dispose();
+  }
+
+  void _onPerms() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _iniciar() async {
     final t = _tenantId;
     if (t == null) {
       setState(() {
@@ -102,38 +130,73 @@ class _PorRolTabState extends State<_PorRolTab> {
       });
       return;
     }
-    setState(() => _cargando = true);
     try {
-      final ex = await _perms.excepcionesDeRol(t, _rol);
+      await _perms.cargarRoles(t);
+    } catch (e) {
+      // Sin la tabla de roles solo se pueden editar los roles base.
+      debugPrint('Roles personalizados: $e');
+    }
+    await _seleccionar(_rol);
+  }
+
+  Future<void> _seleccionar(String rol) async {
+    final t = _tenantId;
+    if (t == null) return;
+    setState(() {
+      _rol = rol;
+      _cargando = true;
+      _personasConRol = null;
+    });
+    try {
+      final custom = _perms.rolPersonalizado(rol);
+      if (custom != null) {
+        _permisosLocal = Set<Permiso>.from(custom.permisos);
+        _excepciones = {};
+        _perms.usuariosConRol(t, rol).then((n) {
+          if (mounted && _rol == rol) setState(() => _personasConRol = n);
+        }).catchError((_) {});
+      } else {
+        _excepciones = await _perms.excepcionesDeRol(t, rol);
+      }
       if (!mounted) return;
       setState(() {
-        _excepciones = ex;
         _error = null;
         _cargando = false;
       });
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = _mensaje(e);
+        _error = _mensajeError(e);
         _cargando = false;
       });
     }
   }
 
-  String _mensaje(Object e) {
-    final s = e.toString().toLowerCase();
-    if (s.contains('rol_permisos') && (s.contains('does not exist') || s.contains('pgrst205') || s.contains('schema cache'))) {
-      return 'Faltan las tablas de permisos. Ejecuta migracion_turnos_permisos.sql en la base de datos.';
-    }
-    return e.toString().replaceAll('Exception: ', '');
+  bool _efectivo(Permiso p) {
+    if (_custom != null) return _permisosLocal.contains(p);
+    return _excepciones[p] ?? Permiso.porDefecto(_rol).contains(p);
   }
-
-  bool _efectivo(Permiso p) =>
-      _excepciones[p] ?? Permiso.porDefecto(_rol).contains(p);
 
   Future<void> _cambiar(Permiso p, bool valor) async {
     final t = _tenantId;
     if (t == null) return;
+
+    final custom = _custom;
+    if (custom != null) {
+      final previo = Set<Permiso>.from(_permisosLocal);
+      final nuevo = Set<Permiso>.from(_permisosLocal);
+      valor ? nuevo.add(p) : nuevo.remove(p);
+      setState(() => _permisosLocal = nuevo);
+      try {
+        await _perms.actualizarRol(custom, permisos: nuevo);
+      } catch (e) {
+        if (!mounted) return;
+        setState(() => _permisosLocal = previo);
+        AppToast.showError(context, _mensajeError(e), title: 'No se pudo guardar');
+      }
+      return;
+    }
+
     final previo = Map<Permiso, bool>.from(_excepciones);
     final defecto = Permiso.porDefecto(_rol).contains(p);
     setState(() {
@@ -152,7 +215,7 @@ class _PorRolTabState extends State<_PorRolTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _excepciones = previo);
-      AppToast.showError(context, _mensaje(e), title: 'No se pudo guardar');
+      AppToast.showError(context, _mensajeError(e), title: 'No se pudo guardar');
     }
   }
 
@@ -173,15 +236,93 @@ class _PorRolTabState extends State<_PorRolTab> {
     if (ok != true) return;
     try {
       await _perms.restaurarRol(t, _rol);
-      await _cargar();
+      await _seleccionar(_rol);
       if (mounted) AppToast.showSuccess(context, 'Permisos restaurados');
     } catch (e) {
-      if (mounted) AppToast.showError(context, _mensaje(e));
+      if (mounted) AppToast.showError(context, _mensajeError(e));
+    }
+  }
+
+  // ---- Crear / editar / eliminar roles personalizados ----
+
+  Future<void> _nuevoRol() async {
+    final t = _tenantId;
+    if (t == null) return;
+    final datos = await showDialog<_DatosRol>(
+      context: context,
+      builder: (_) => const _RolDialog(),
+    );
+    if (datos == null) return;
+    try {
+      final base = switch (datos.basadoEn) {
+        'empleado' => Permiso.porDefecto('empleado'),
+        'admin' => Permiso.porDefecto('admin'),
+        _ => <Permiso>{Permiso.dashboardVer},
+      };
+      final rol = await _perms.crearRol(
+        tenantId: t,
+        nombre: datos.nombre,
+        descripcion: datos.descripcion,
+        permisos: base,
+      );
+      if (!mounted) return;
+      AppToast.showSuccess(context, 'Rol "${rol.nombre}" creado. Ajusta sus permisos abajo.');
+      await _seleccionar(rol.clave);
+    } catch (e) {
+      if (mounted) AppToast.showError(context, _mensajeError(e), title: 'No se pudo crear el rol');
+    }
+  }
+
+  Future<void> _editarRol() async {
+    final custom = _custom;
+    if (custom == null) return;
+    final datos = await showDialog<_DatosRol>(
+      context: context,
+      builder: (_) => _RolDialog(existente: custom),
+    );
+    if (datos == null) return;
+    try {
+      await _perms.actualizarRol(custom, nombre: datos.nombre, descripcion: datos.descripcion ?? '');
+      if (mounted) AppToast.showSuccess(context, 'Rol actualizado');
+    } catch (e) {
+      if (mounted) AppToast.showError(context, _mensajeError(e));
+    }
+  }
+
+  Future<void> _eliminarRol() async {
+    final custom = _custom;
+    if (custom == null) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Eliminar rol'),
+        content: Text('Se eliminará el rol "${custom.nombre}". Solo es posible si nadie lo tiene asignado.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Eliminar'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await _perms.eliminarRol(custom);
+      if (!mounted) return;
+      AppToast.showSuccess(context, 'Rol eliminado');
+      await _seleccionar('empleado');
+    } catch (e) {
+      if (mounted) AppToast.showError(context, _mensajeError(e), title: 'No se pudo eliminar');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final custom = _custom;
+    final roles = _perms.rolesPersonalizados;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -192,22 +333,74 @@ class _PorRolTabState extends State<_PorRolTab> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  'Define qué puede hacer cada rol en tu negocio. El dueño siempre tiene todos los permisos.',
+                  'Define qué puede hacer cada rol. El dueño siempre tiene todos los permisos. '
+                  'Crea roles propios (socio, reportes, supervisor...) y asígnalos desde Usuarios.',
                   style: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
                 ),
                 const SizedBox(height: 14),
-                SegmentedButton<String>(
-                  showSelectedIcon: false,
-                  segments: [
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
                     for (final r in Permiso.rolesEditables)
-                      ButtonSegment(value: r, label: Text(Permiso.etiquetaRol(r))),
+                      ChoiceChip(
+                        label: Text(Permiso.etiquetaRol(r)),
+                        selected: _rol == r,
+                        onSelected: (_) => _seleccionar(r),
+                      ),
+                    for (final r in roles)
+                      ChoiceChip(
+                        avatar: const Icon(Icons.star_rounded, size: 16),
+                        label: Text(r.nombre),
+                        selected: _rol == r.clave,
+                        onSelected: (_) => _seleccionar(r.clave),
+                      ),
+                    ActionChip(
+                      avatar: const Icon(Icons.add_rounded, size: 18),
+                      label: const Text('Nuevo rol'),
+                      onPressed: _nuevoRol,
+                    ),
                   ],
-                  selected: {_rol},
-                  onSelectionChanged: (v) {
-                    setState(() => _rol = v.first);
-                    _cargar();
-                  },
                 ),
+                if (custom != null) ...[
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: context.brand.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(color: context.brand.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.star_rounded, color: context.brand),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(custom.nombre, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                              Text(
+                                [
+                                  if (custom.descripcion != null) custom.descripcion!,
+                                  if (_personasConRol != null)
+                                    '$_personasConRol ${_personasConRol == 1 ? 'persona' : 'personas'}',
+                                ].join(' · '),
+                                style: TextStyle(fontSize: 12, color: context.textMuted),
+                              ),
+                            ],
+                          ),
+                        ),
+                        IconButton(tooltip: 'Renombrar', onPressed: _editarRol, icon: const Icon(Icons.edit_rounded, size: 20)),
+                        IconButton(
+                          tooltip: 'Eliminar rol',
+                          onPressed: _eliminarRol,
+                          icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (_cargando)
                   const Padding(padding: EdgeInsets.all(40), child: AppLoader(size: 52))
                 else if (_error != null)
@@ -220,7 +413,7 @@ class _PorRolTabState extends State<_PorRolTab> {
                         Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: context.textMuted)),
                         const SizedBox(height: 12),
                         OutlinedButton.icon(
-                          onPressed: _cargar,
+                          onPressed: _iniciar,
                           icon: const Icon(Icons.refresh_rounded),
                           label: const Text('Reintentar'),
                         ),
@@ -232,15 +425,17 @@ class _PorRolTabState extends State<_PorRolTab> {
                     _encabezadoGrupo(context, g.key),
                     for (final p in g.value) _fila(context, p),
                   ],
-                  const SizedBox(height: 14),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: _excepciones.isEmpty ? null : _restaurar,
-                      icon: const Icon(Icons.restore_rounded, size: 18),
-                      label: const Text('Restaurar valores por defecto'),
+                  if (custom == null) ...[
+                    const SizedBox(height: 14),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: _excepciones.isEmpty ? null : _restaurar,
+                        icon: const Icon(Icons.restore_rounded, size: 18),
+                        label: const Text('Restaurar valores por defecto'),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ],
             ),
@@ -251,7 +446,7 @@ class _PorRolTabState extends State<_PorRolTab> {
   }
 
   Widget _fila(BuildContext context, Permiso p) {
-    final personalizado = _excepciones.containsKey(p);
+    final personalizado = _custom == null && _excepciones.containsKey(p);
     return Container(
       margin: const EdgeInsets.only(bottom: 6),
       decoration: BoxDecoration(
@@ -287,6 +482,112 @@ class _PorRolTabState extends State<_PorRolTab> {
   }
 }
 
+class _DatosRol {
+  final String nombre;
+  final String? descripcion;
+  final String basadoEn; // 'empleado' | 'admin' | 'vacio'
+  const _DatosRol(this.nombre, this.descripcion, this.basadoEn);
+}
+
+class _RolDialog extends StatefulWidget {
+  final RolPersonalizado? existente;
+  const _RolDialog({this.existente});
+
+  @override
+  State<_RolDialog> createState() => _RolDialogState();
+}
+
+class _RolDialogState extends State<_RolDialog> {
+  final _nombreCtrl = TextEditingController();
+  final _descCtrl = TextEditingController();
+  String _base = 'empleado';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _nombreCtrl.text = widget.existente?.nombre ?? '';
+    _descCtrl.text = widget.existente?.descripcion ?? '';
+  }
+
+  @override
+  void dispose() {
+    _nombreCtrl.dispose();
+    _descCtrl.dispose();
+    super.dispose();
+  }
+
+  void _aceptar() {
+    final nombre = _nombreCtrl.text.trim();
+    if (nombre.length < 2) {
+      setState(() => _error = 'Escribe un nombre para el rol.');
+      return;
+    }
+    final reservados = {'dueño', 'dueno', 'admin', 'administrador', 'empleado', 'superadmin'};
+    if (widget.existente == null && reservados.contains(nombre.toLowerCase())) {
+      setState(() => _error = 'Ese nombre ya existe como rol base.');
+      return;
+    }
+    final desc = _descCtrl.text.trim();
+    Navigator.pop(context, _DatosRol(nombre, desc.isEmpty ? null : desc, _base));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final nuevo = widget.existente == null;
+    return AlertDialog(
+      title: Text(nuevo ? 'Nuevo rol' : 'Editar rol'),
+      content: SizedBox(
+        width: 400,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              TextField(
+                controller: _nombreCtrl,
+                autofocus: true,
+                maxLength: 30,
+                decoration: const InputDecoration(
+                  labelText: 'Nombre del rol',
+                  hintText: 'Socio, Reportes, Supervisor...',
+                ),
+              ),
+              TextField(
+                controller: _descCtrl,
+                maxLength: 80,
+                decoration: const InputDecoration(labelText: 'Descripción (opcional)'),
+              ),
+              if (nuevo) ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _base,
+                  decoration: const InputDecoration(labelText: 'Empezar con los permisos de'),
+                  items: const [
+                    DropdownMenuItem(value: 'empleado', child: Text('Empleado')),
+                    DropdownMenuItem(value: 'admin', child: Text('Administrador')),
+                    DropdownMenuItem(value: 'vacio', child: Text('Solo ver el inicio')),
+                  ],
+                  onChanged: (v) => setState(() => _base = v ?? 'empleado'),
+                ),
+              ],
+              if (_error != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 10),
+                  child: Text(_error!, style: const TextStyle(color: Colors.red, fontSize: 12.5)),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(onPressed: _aceptar, child: Text(nuevo ? 'Crear rol' : 'Guardar')),
+      ],
+    );
+  }
+}
+
 // ======================================================================
 // POR USUARIO
 // ======================================================================
@@ -304,7 +605,7 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
 
   List<EmpleadoResumen> _usuarios = [];
   EmpleadoResumen? _sel;
-  Map<Permiso, bool> _deRol = {}; // excepciones del rol del usuario seleccionado
+  Map<Permiso, bool> _deRol = {}; // excepciones del rol base del usuario seleccionado
   Map<Permiso, bool> _deUsuario = {};
   bool _cargando = true;
   bool _cargandoDetalle = false;
@@ -321,6 +622,12 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
   Future<void> _cargarUsuarios() async {
     setState(() => _cargando = true);
     try {
+      final t = _tenantId;
+      if (t != null) {
+        try {
+          await _perms.cargarRoles(t);
+        } catch (_) {}
+      }
       final u = await _repo.empleados();
       if (!mounted) return;
       setState(() {
@@ -332,7 +639,7 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString().replaceAll('Exception: ', '');
+        _error = _mensajeError(e);
         _cargando = false;
       });
     }
@@ -345,12 +652,12 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
       _cargandoDetalle = true;
     });
     try {
-      final deRol = t == null || Permiso.esRolIntocable(u.rol)
+      final intocable = Permiso.esRolIntocable(u.rol);
+      final esCustom = _perms.esRolPersonalizado(u.rol);
+      final deRol = t == null || intocable || esCustom
           ? <Permiso, bool>{}
           : await _perms.excepcionesDeRol(t, u.rol);
-      final deUsuario = Permiso.esRolIntocable(u.rol)
-          ? <Permiso, bool>{}
-          : await _perms.excepcionesDeUsuario(u.id);
+      final deUsuario = intocable ? <Permiso, bool>{} : await _perms.excepcionesDeUsuario(u.id);
       if (!mounted || _sel?.id != u.id) return;
       setState(() {
         _deRol = deRol;
@@ -360,13 +667,17 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _cargandoDetalle = false);
-      AppToast.showError(context, e.toString().replaceAll('Exception: ', ''));
+      AppToast.showError(context, _mensajeError(e));
     }
   }
 
   /// Valor que tendría el usuario sin excepciones propias (lo heredado del rol).
-  bool _heredado(Permiso p) =>
-      _deRol[p] ?? Permiso.porDefecto(_sel!.rol).contains(p);
+  bool _heredado(Permiso p) {
+    final rol = _sel!.rol;
+    final custom = _perms.rolPersonalizado(rol);
+    if (custom != null) return custom.permisos.contains(p);
+    return _deRol[p] ?? Permiso.porDefecto(rol).contains(p);
+  }
 
   bool _efectivo(Permiso p) => _deUsuario[p] ?? _heredado(p);
 
@@ -375,15 +686,16 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
     final t = _tenantId;
     if (u == null || t == null) return;
     final previo = Map<Permiso, bool>.from(_deUsuario);
+    final heredado = _heredado(p);
     setState(() {
-      if (valor == _heredado(p)) {
+      if (valor == heredado) {
         _deUsuario.remove(p);
       } else {
         _deUsuario[p] = valor;
       }
     });
     try {
-      if (valor == _heredado(p)) {
+      if (valor == heredado) {
         await _perms.quitarExcepcionUsuario(u.id, p);
       } else {
         await _perms.guardarExcepcionUsuario(t, u.id, p, valor);
@@ -391,7 +703,7 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
     } catch (e) {
       if (!mounted) return;
       setState(() => _deUsuario = previo);
-      AppToast.showError(context, e.toString().replaceAll('Exception: ', ''), title: 'No se pudo guardar');
+      AppToast.showError(context, _mensajeError(e), title: 'No se pudo guardar');
     }
   }
 
@@ -403,7 +715,7 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
       await _seleccionar(u);
       if (mounted) AppToast.showSuccess(context, 'Ahora hereda los permisos de su rol');
     } catch (e) {
-      if (mounted) AppToast.showError(context, e.toString().replaceAll('Exception: ', ''));
+      if (mounted) AppToast.showError(context, _mensajeError(e));
     }
   }
 

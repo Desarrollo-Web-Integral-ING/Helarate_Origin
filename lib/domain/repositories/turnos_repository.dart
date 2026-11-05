@@ -1,4 +1,5 @@
 import '../models/asistencia.dart';
+import '../models/ausencia.dart';
 import '../models/horario_empleado.dart';
 
 abstract class TurnosRepository {
@@ -37,4 +38,30 @@ abstract class TurnosRepository {
   Future<void> guardarHorarios(String userId, List<HorarioEmpleado> dias);
 
   Future<List<EmpleadoResumen>> empleados();
+
+  // ---- Ausencias (vacaciones, días libres, permisos, festivos) ----
+
+  /// Ausencias que tocan el rango [desde, hasta]. Con [userId] incluye también
+  /// las que aplican a todo el negocio.
+  Future<List<Ausencia>> ausencias({
+    required DateTime desde,
+    required DateTime hasta,
+    String? userId,
+  });
+
+  /// [userId] null = festivo/cierre para todo el negocio.
+  Future<Ausencia> crearAusencia({
+    String? userId,
+    required TipoAusencia tipo,
+    required DateTime desde,
+    required DateTime hasta,
+    String? notas,
+  });
+
+  Future<void> actualizarAusencia(Ausencia a);
+  Future<void> eliminarAusencia(String id);
+
+  // ---- Reglas del negocio ----
+  Future<TurnosConfig> configuracion();
+  Future<void> guardarConfiguracion(TurnosConfig config);
 }

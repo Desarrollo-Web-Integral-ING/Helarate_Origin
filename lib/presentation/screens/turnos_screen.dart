@@ -10,9 +10,11 @@ import '../../core/widgets/app_loader.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 import '../../domain/models/asistencia.dart';
+import '../../domain/models/ausencia.dart';
 import '../../domain/models/horario_empleado.dart';
 import '../../domain/repositories/turnos_repository.dart';
 import '../widgets/permission_gate.dart';
+import 'turnos_calendario.dart';
 
 /// Índice de esta pantalla en la navegación principal (main.dart).
 const int kTurnosTabIndex = 8;
@@ -66,9 +68,10 @@ class TurnosScreen extends StatelessWidget {
         final tabs = <(String, IconData, Widget)>[
           if (perms.can(Permiso.turnosPropios))
             ('Mi turno', Icons.timer_rounded, const _MiTurnoTab()),
+          ('Calendario', Icons.calendar_month_rounded, const CalendarioTurnosTab()),
           if (perms.can(Permiso.turnosAdministrar)) ...[
             ('Equipo', Icons.groups_rounded, const _EquipoTab()),
-            ('Horarios', Icons.calendar_month_rounded, const _HorariosTab()),
+            ('Horarios', Icons.schedule_rounded, const _HorariosTab()),
           ],
         ];
         if (tabs.isEmpty) return const AccessDeniedView(permiso: Permiso.turnosPropios);
@@ -114,6 +117,8 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
   Asistencia? _abierto;
   List<Asistencia> _recientes = [];
   HorarioEmpleado? _horarioHoy;
+  TurnosConfig _config = const TurnosConfig();
+  List<Ausencia> _ausencias = [];
   bool _cargando = true;
   bool _ocupado = false;
   String? _error;
@@ -154,6 +159,17 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
         hasta: hoy,
       );
       final horarios = await _repo.horarios(userId: u.id);
+      final config = await _repo.configuracion();
+      var ausencias = <Ausencia>[];
+      try {
+        ausencias = await _repo.ausencias(
+          desde: hoy,
+          hasta: hoy.add(const Duration(days: 60)),
+          userId: u.id,
+        );
+      } catch (_) {
+        // Sin la tabla de ausencias (migración pendiente) el turno sigue funcionando.
+      }
       HorarioEmpleado? hoyH;
       for (final h in horarios) {
         if (h.diaSemana == DateTime.now().weekday && h.activo) hoyH = h;
@@ -163,6 +179,8 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
         _abierto = abierto;
         _recientes = recientes;
         _horarioHoy = hoyH;
+        _config = config;
+        _ausencias = ausencias;
         _error = null;
         _cargando = false;
       });
@@ -209,7 +227,7 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
     final h = _horarioHoy;
     if (h != null) {
       final minutos = DateTime.now().difference(h.entradaEn(DateTime.now())).inMinutes;
-      if (minutos > kToleranciaRetardoMin) retardo = minutos;
+      if (minutos > _config.toleranciaRetardoMin) retardo = minutos;
     }
     await _ejecutar(
       () => _repo.registrarEntrada(userId: u.id, retardoMinutos: retardo),
@@ -271,12 +289,14 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
                   if (turno != null && turno.fecha != hoy)
                     _aviso(context,
                         'Tienes un turno abierto desde el ${DateFormat('d MMM', 'es_MX').format(turno.fecha)}. Registra su salida.'),
+                  _bannerAusenciaHoy(context, hoy),
                   _contadores(context, mostrado),
                   const SizedBox(height: 14),
                   _acciones(context, estado, turno),
                   const SizedBox(height: 18),
                   _lineaDeTiempo(context, mostrado),
                   const SizedBox(height: 18),
+                  _proximasAusencias(context, hoy),
                   _historial(context, horasSemana),
                 ],
               ),
@@ -287,8 +307,80 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
     );
   }
 
-  Widget _aviso(BuildContext context, String texto) {
+  Widget _bannerAusenciaHoy(BuildContext context, DateTime hoy) {
+    final hoyA = _ausencias.where((a) => a.cubre(hoy)).toList();
+    if (hoyA.isEmpty) return const SizedBox.shrink();
+    final a = hoyA.first;
     return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: a.tipo.color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: a.tipo.color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        children: [
+          Icon(a.tipo.icono, color: a.tipo.color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              a.paraTodos
+                  ? 'Hoy el negocio está cerrado (${a.tipo.etiqueta.toLowerCase()}).'
+                  : 'Hoy tienes ${a.tipo.etiqueta.toLowerCase()}'
+                      '${a.fechaFin != hoy ? ' hasta el ${DateFormat('d MMM', 'es_MX').format(a.fechaFin)}' : ''}.',
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _proximasAusencias(BuildContext context, DateTime hoy) {
+    final proximas = _ausencias.where((a) => !a.fechaFin.isBefore(hoy)).take(5).toList();
+    if (proximas.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Próximos días libres', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 10),
+          for (final a in proximas)
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: context.surfaceColor,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: a.tipo.color.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                children: [
+                  Icon(a.tipo.icono, color: a.tipo.color, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      a.paraTodos ? '${a.tipo.etiqueta} · negocio cerrado' : a.tipo.etiqueta,
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                  Text(
+                    a.fechaInicio == a.fechaFin
+                        ? DateFormat('d MMM', 'es_MX').format(a.fechaInicio)
+                        : '${DateFormat('d MMM', 'es_MX').format(a.fechaInicio)} – ${DateFormat('d MMM', 'es_MX').format(a.fechaFin)}',
+                    style: TextStyle(color: context.textMuted, fontSize: 12.5),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _aviso(BuildContext context, String texto) {    return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -572,6 +664,7 @@ class _EquipoTabState extends State<_EquipoTab> {
   List<EmpleadoResumen> _empleados = [];
   List<Asistencia> _registros = [];
   List<HorarioEmpleado> _horarios = [];
+  List<Ausencia> _ausenciasHoy = [];
   bool _cargando = true;
   String? _error;
 
@@ -590,6 +683,15 @@ class _EquipoTabState extends State<_EquipoTab> {
   void dispose() {
     activeTabNotifier.removeListener(_onTab);
     super.dispose();
+  }
+
+  /// Ausencia de hoy de la persona (propia o del negocio entero).
+  Ausencia? _ausenciaHoyDe(String userId) {
+    final hoy = _soloFecha(DateTime.now());
+    for (final a in _ausenciasHoy) {
+      if ((a.userId == userId || a.paraTodos) && a.cubre(hoy)) return a;
+    }
+    return null;
   }
 
   (DateTime, DateTime) get _rango {
@@ -611,11 +713,19 @@ class _EquipoTabState extends State<_EquipoTab> {
       final emp = await _repo.empleados();
       final reg = await _repo.asistencias(desde: r.$1, hasta: r.$2);
       final hor = await _repo.horarios();
+      var ausHoy = <Ausencia>[];
+      try {
+        final hoy = _soloFecha(DateTime.now());
+        ausHoy = await _repo.ausencias(desde: hoy, hasta: hoy);
+      } catch (_) {
+        // Migración de ausencias pendiente: se ignora.
+      }
       if (!mounted) return;
       setState(() {
         _empleados = emp;
         _registros = reg;
         _horarios = hor;
+        _ausenciasHoy = ausHoy;
         _error = null;
         _cargando = false;
       });
@@ -653,7 +763,9 @@ class _EquipoTabState extends State<_EquipoTab> {
       final abierto = regs.where((a) => a.abierto).toList();
       if (abierto.isNotEmpty) {
         abierto.first.estado == EstadoTurno.enComida ? enComida++ : enTurno++;
-      } else if (regs.where((a) => a.fecha == hoy).isEmpty && _horarioDe(e.id, hoy) != null) {
+      } else if (regs.where((a) => a.fecha == hoy).isEmpty &&
+          _horarioDe(e.id, hoy) != null &&
+          _ausenciaHoyDe(e.id) == null) {
         sinEntrada++;
       }
     }
@@ -733,6 +845,7 @@ class _EquipoTabState extends State<_EquipoTab> {
     final retardos = regs.where((a) => a.retardoMinutos > 0).length;
     final abierto = regs.where((a) => a.abierto).toList();
     final prog = _horarioDe(e.id, hoy);
+    final aus = _ausenciaHoyDe(e.id);
 
     late final String estadoTxt;
     late final Color estadoColor;
@@ -746,6 +859,9 @@ class _EquipoTabState extends State<_EquipoTab> {
       final a = regs.firstWhere((a) => a.fecha == hoy);
       estadoTxt = 'Salió a las ${_hora(a.salida)}';
       estadoColor = Colors.blueGrey;
+    } else if (aus != null) {
+      estadoTxt = aus.tipo.etiqueta;
+      estadoColor = aus.tipo.color;
     } else if (prog != null) {
       estadoTxt = 'Sin entrada · esperado ${prog.horaEntrada}';
       estadoColor = Colors.red;
@@ -1112,6 +1228,8 @@ class _HorariosTabState extends State<_HorariosTab> {
   final TurnosRepository _repo = getIt<TurnosRepository>();
 
   List<EmpleadoResumen> _empleados = [];
+  TurnosConfig _config = const TurnosConfig();
+  bool _guardandoConfig = false;
   String? _seleccionado;
   Map<int, HorarioEmpleado> _borrador = {};
   bool _cargando = true;
@@ -1129,9 +1247,11 @@ class _HorariosTabState extends State<_HorariosTab> {
     setState(() => _cargando = true);
     try {
       final emp = await _repo.empleados();
+      final config = await _repo.configuracion();
       if (!mounted) return;
       setState(() {
         _empleados = emp;
+        _config = config;
         _error = null;
         _cargando = false;
       });
@@ -1157,7 +1277,12 @@ class _HorariosTabState extends State<_HorariosTab> {
         final g = guardados.where((h) => h.diaSemana == d).toList();
         mapa[d] = g.isNotEmpty
             ? g.first
-            : HorarioEmpleado(userId: userId, diaSemana: d, activo: d <= 5);
+            : HorarioEmpleado(
+                userId: userId,
+                diaSemana: d,
+                activo: d <= 5,
+                comidaMinutos: _config.comidaMinutosDefault,
+              );
       }
       if (!mounted) return;
       setState(() {
@@ -1235,6 +1360,8 @@ class _HorariosTabState extends State<_HorariosTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                _reglasDelNegocio(context),
+                const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _seleccionado,
                   isExpanded: true,
@@ -1280,8 +1407,98 @@ class _HorariosTabState extends State<_HorariosTab> {
     );
   }
 
-  Widget _filaDia(BuildContext context, HorarioEmpleado h) {
-    final activo = h.activo;
+  Future<void> _guardarConfig() async {
+    setState(() => _guardandoConfig = true);
+    try {
+      await _repo.guardarConfiguracion(_config);
+      if (mounted) AppToast.showSuccess(context, 'Reglas guardadas');
+    } catch (e) {
+      if (mounted) {
+        AppToast.showError(context, e.toString().replaceAll('Exception: ', ''), title: 'No se pudo guardar');
+      }
+    } finally {
+      if (mounted) setState(() => _guardandoConfig = false);
+    }
+  }
+
+  /// Reglas generales del negocio para turnos y comidas.
+  Widget _reglasDelNegocio(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.rule_rounded, color: context.brand, size: 20),
+            const SizedBox(width: 8),
+            const Text('Reglas del negocio', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            'Aplican a todo el equipo. El retardo se cuenta cuando alguien entra pasada la tolerancia.',
+            style: TextStyle(fontSize: 12, color: context.textMuted),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 14,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Tolerancia de retardo:'),
+                IconButton(
+                  onPressed: _config.toleranciaRetardoMin > 0
+                      ? () => setState(() => _config = _config.copyWith(
+                          toleranciaRetardoMin: _config.toleranciaRetardoMin - 5 < 0 ? 0 : _config.toleranciaRetardoMin - 5))
+                      : null,
+                  icon: const Icon(Icons.remove_circle_outline_rounded),
+                ),
+                Text('${_config.toleranciaRetardoMin} min', style: const TextStyle(fontWeight: FontWeight.w800)),
+                IconButton(
+                  onPressed: _config.toleranciaRetardoMin < 60
+                      ? () => setState(() =>
+                          _config = _config.copyWith(toleranciaRetardoMin: _config.toleranciaRetardoMin + 5))
+                      : null,
+                  icon: const Icon(Icons.add_circle_outline_rounded),
+                ),
+              ]),
+              Row(mainAxisSize: MainAxisSize.min, children: [
+                const Text('Comida por defecto:'),
+                const SizedBox(width: 8),
+                DropdownButton<int>(
+                  value: const [0, 15, 30, 45, 60, 90].contains(_config.comidaMinutosDefault)
+                      ? _config.comidaMinutosDefault
+                      : 30,
+                  underline: const SizedBox.shrink(),
+                  items: [
+                    for (final m in const [0, 15, 30, 45, 60, 90])
+                      DropdownMenuItem(value: m, child: Text(m == 0 ? 'Sin comida' : '$m min')),
+                  ],
+                  onChanged: (v) {
+                    if (v != null) setState(() => _config = _config.copyWith(comidaMinutosDefault: v));
+                  },
+                ),
+              ]),
+              FilledButton.icon(
+                onPressed: _guardandoConfig ? null : _guardarConfig,
+                icon: _guardandoConfig
+                    ? const AppSpinner(size: 16, color: Colors.white)
+                    : const Icon(Icons.save_rounded, size: 18),
+                label: const Text('Guardar reglas'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filaDia(BuildContext context, HorarioEmpleado h) {    final activo = h.activo;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

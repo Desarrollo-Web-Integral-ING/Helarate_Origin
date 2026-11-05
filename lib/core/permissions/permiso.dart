@@ -70,7 +70,13 @@ enum Permiso {
   static bool esRolIntocable(String rol) =>
       rol == 'superadmin' || rol == 'dueño' || rol == 'dueno';
 
+  /// Nombres de los roles personalizados de la empresa (clave -> nombre).
+  /// Lo llena [PermissionService] al cargar o cambiar los roles.
+  static Map<String, String> nombresRoles = {};
+
   static String etiquetaRol(String rol) {
+    final personalizado = nombresRoles[rol];
+    if (personalizado != null) return personalizado;
     switch (rol) {
       case 'superadmin':
         return 'Superadmin';

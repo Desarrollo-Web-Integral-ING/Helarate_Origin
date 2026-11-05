@@ -111,6 +111,16 @@ class EmpleadoResumen {
   final String id;
   final String nombre;
   final String rol;
+  final String avatarStyle;
+  final String? avatarSeed;
+  final String? avatarPng;
 
-  const EmpleadoResumen({required this.id, required this.nombre, required this.rol});
+  const EmpleadoResumen({
+    required this.id,
+    required this.nombre,
+    required this.rol,
+    this.avatarStyle = 'gradiente',
+    this.avatarSeed,
+    this.avatarPng,
+  });
 }
