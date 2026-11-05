@@ -504,7 +504,8 @@ class _InventarioProduccionScreenState
     );
   }
 
-  void _showForm({Insumo? producto}) {
+  void _showForm({Insumo? producto}) async {
+    await _cargarCamposPersonalizados();
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
     final unidadCtrl = TextEditingController(text: producto?.unidad ?? '');

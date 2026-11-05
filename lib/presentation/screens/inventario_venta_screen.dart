@@ -534,7 +534,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     );
   }
 
-  void _showForm({Insumo? producto}) {
+  void _showForm({Insumo? producto}) async {
+    await _cargarCamposPersonalizados();
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
     final saborCtrl = TextEditingController(text: producto?.sabor ?? '');

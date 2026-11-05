@@ -3,6 +3,7 @@ import '../../core/theme/app_theme.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../domain/models/campo_personalizado.dart';
 import 'barcode_scanner_screen.dart';
+import '../screens/campos_personalizados_screen.dart';
 
 class FormularioCamposDinamicos extends StatelessWidget {
   final List<CampoPersonalizado> campos;
@@ -18,7 +19,38 @@ class FormularioCamposDinamicos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (campos.isEmpty) return const SizedBox.shrink();
+    if (campos.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: context.brand.withValues(alpha: 0.06),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: context.brand.withValues(alpha: 0.2)),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.tune_rounded, size: 20, color: context.brand),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Personaliza este formulario: agrega Marca, Talla, Proveedor, Lote, etc.',
+                  style: TextStyle(fontSize: 12, color: context.textMuted),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const CamposPersonalizadosScreen()),
+                ),
+                child: const Text('Configurar', style: TextStyle(fontSize: 12)),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
