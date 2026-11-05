@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -40,15 +40,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Detección automática de entorno: DEV (Local/Docker) vs PROD (Nube)
-  const appEnv = String.fromEnvironment('ENV', defaultValue: 'dev');
-  final envFile = appEnv == 'prod' ? '.env.production' : '.env.development';
-  
   try {
-    await dotenv.load(fileName: envFile);
-    debugPrint('🚀 [ENTORNO] Cargado con éxito: $envFile');
-  } catch (e) {
-    debugPrint('⚠️ [ENTORNO] Error cargando $envFile ($e). Intentando fallback a .env');
     await dotenv.load(fileName: '.env');
+  } catch (e) {
+    debugPrint('Nota: .env no cargado (\)');
   }
 
   final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';

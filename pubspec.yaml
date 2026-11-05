@@ -1,4 +1,4 @@
-name: nevero_app
+﻿name: nevero_app
 description: Control de inventario y ventas para nevero tradicional
 publish_to: 'none'
 version: 1.0.0+1
@@ -47,5 +47,3 @@ flutter:
   uses-material-design: true
   assets:
     - .env
-    - .env.development
-    - .env.production

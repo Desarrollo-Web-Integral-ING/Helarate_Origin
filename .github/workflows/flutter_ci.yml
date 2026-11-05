@@ -27,7 +27,7 @@ jobs:
 
       - name: Create dummy .env for analysis
         run: |
-          touch .env .env.development .env.production
+          touch .env
           echo "SUPABASE_URL=" >> .env
           echo "SUPABASE_ANON_KEY=" >> .env
 
