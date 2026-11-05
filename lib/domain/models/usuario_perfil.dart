@@ -30,7 +30,7 @@ class UsuarioPerfil {
         : (nombre.isNotEmpty ? nombre : id);
     final encoded = Uri.encodeComponent(seed);
     final rawUrl = 'https://api.dicebear.com/9.x/' + avatarStyle + '/png?seed=' + encoded;
-    return 'https://wsrv.nl/?url=' + Uri.encodeComponent(rawUrl) + '&output=png';
+    return 'https://api.dicebear.com/9.x/$avatarStyle/png?seed=$encoded';
   }
 
   UsuarioPerfil copyWith({

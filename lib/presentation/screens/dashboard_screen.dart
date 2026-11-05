@@ -30,6 +30,24 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  @override
+  void initState() {
+    super.initState();
+    context.read<DashboardBloc>().add(LoadDashboardEvent());
+    activeTabNotifier.addListener(_onTabChange);
+  }
+
+  void _onTabChange() {
+    if (activeTabNotifier.value == 0) {
+      context.read<DashboardBloc>().add(LoadDashboardEvent());
+    }
+  }
+
+  @override
+  void dispose() {
+    activeTabNotifier.removeListener(_onTabChange);
+    super.dispose();
+  }
   NumberFormat get _fmt => Money.of(context);
 
   List<Insumo> _productosVenta = [];

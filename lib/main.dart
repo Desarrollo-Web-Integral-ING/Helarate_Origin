@@ -91,18 +91,18 @@ class NeveroApp extends StatelessWidget {
         BlocProvider<InventarioBloc>(
           create: (context) => InventarioBloc(
             insumoRepository: getIt<InsumoRepository>(),
-          )..add(LoadInventario()),
+          ),
         ),
         BlocProvider<VentaBloc>(
           create: (context) => VentaBloc(
             ventaRepository: getIt<VentaRepository>(),
-          )..add(LoadVentasEvent()),
+          ),
         ),
         BlocProvider<DashboardBloc>(
           create: (context) => DashboardBloc(
             insumoRepository: getIt<InsumoRepository>(),
             ventaRepository: getIt<VentaRepository>(),
-          )..add(LoadDashboardEvent()),
+          ),
         ),
       ],
       // Solo reconstruye el MaterialApp cuando cambia algo que afecta al tema,
