@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
 
 class BarcodeScannerScreen extends StatefulWidget {
@@ -12,16 +14,20 @@ class BarcodeScannerScreen extends StatefulWidget {
 }
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final MobileScannerController _controller;
   late final AnimationController _animCtrl;
   late final Animation<double> _laserPosition;
   bool _hasScanned = false;
+  bool _permissionDenied = false;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+
     _controller = MobileScannerController(
+      autoStart: false,
       detectionSpeed: DetectionSpeed.noDuplicates,
       facing: CameraFacing.back,
       torchEnabled: false,
@@ -35,10 +41,56 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     _laserPosition = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
     );
+
+    // Solicitar permiso de forma activa y explícita
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _requestPermissionAndStart();
+    });
+  }
+
+  Future<void> _requestPermissionAndStart() async {
+    if (kIsWeb) {
+      try {
+        await _controller.start();
+        if (mounted) setState(() => _permissionDenied = false);
+      } catch (e) {
+        if (mounted) setState(() => _permissionDenied = true);
+      }
+      return;
+    }
+
+    try {
+      final status = await Permission.camera.request();
+      if (status.isGranted) {
+        if (mounted) setState(() => _permissionDenied = false);
+        await _controller.start();
+      } else {
+        if (mounted) setState(() => _permissionDenied = true);
+      }
+    } catch (_) {
+      try {
+        await _controller.start();
+      } catch (_) {
+        if (mounted) setState(() => _permissionDenied = true);
+      }
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (!_controller.value.hasCameraPermission) return;
+
+    if (state == AppLifecycleState.resumed) {
+      _controller.start();
+    } else if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.paused) {
+      _controller.stop();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _animCtrl.dispose();
     super.dispose();
@@ -60,215 +112,223 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          MobileScanner(
-            controller: _controller,
-            scanWindow: scanWindow,
-            errorBuilder: (context, error) {
-              return Container(
-                color: Colors.black,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.camera_alt_outlined,
-                          color: Colors.redAccent,
-                          size: 64,
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Permiso de Cámara Requerido',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Para escanear códigos de barras, autoriza el acceso a la cámara en los ajustes del dispositivo.\n\nDetalle: ${error.errorCode.name}',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32),
-                        ElevatedButton.icon(
-                          onPressed: () => Navigator.pop(context),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppTheme.brandPrimary,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 24,
-                              vertical: 12,
-                            ),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                          ),
-                          icon: const Icon(Icons.arrow_back),
-                          label: const Text('Volver'),
+          if (_permissionDenied)
+            _buildPermissionDeniedView()
+          else
+            MobileScanner(
+              controller: _controller,
+              scanWindow: scanWindow,
+              errorBuilder: (context, error) {
+                return _buildPermissionDeniedView(error: error);
+              },
+              onDetect: (BarcodeCapture capture) {
+                if (_hasScanned) return;
+                final List<Barcode> barcodes = capture.barcodes;
+                for (final barcode in barcodes) {
+                  if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
+                    _hasScanned = true;
+                    widget.onScanned(barcode.rawValue!);
+                    Navigator.pop(context);
+                    break;
+                  }
+                }
+              },
+            ),
+
+          if (!_permissionDenied) ...[
+            // Overlay Oscuro con Ventana Recortada
+            CustomPaint(
+              size: size,
+              painter: ScannerOverlayPainter(scanWindow: scanWindow),
+            ),
+
+            // Línea Láser Animada
+            AnimatedBuilder(
+              animation: _laserPosition,
+              builder: (context, child) {
+                final topPos =
+                    scanWindow.top + (scanWindow.height * _laserPosition.value);
+                return Positioned(
+                  left: scanWindow.left + 8,
+                  top: topPos,
+                  width: scanWindow.width - 16,
+                  child: Container(
+                    height: 2.5,
+                    decoration: BoxDecoration(
+                      color: Colors.redAccent,
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.redAccent.withValues(alpha: 0.8),
+                          blurRadius: 8,
+                          spreadRadius: 2,
                         ),
                       ],
                     ),
                   ),
-                ),
-              );
-            },
-            onDetect: (BarcodeCapture capture) {
-              if (_hasScanned) return;
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                  _hasScanned = true;
-                  widget.onScanned(barcode.rawValue!);
-                  Navigator.pop(context);
-                  break;
-                }
-              }
-            },
-          ),
-
-          // 2. Overlay sombreado y esquinas
-          CustomPaint(
-            painter: ScannerOverlayPainter(
-              scanWindow: scanWindow,
-              borderRadius: 16.0,
+                );
+              },
             ),
-            child: const SizedBox.expand(),
-          ),
+          ],
 
-          // 3. Línea láser animada
-          AnimatedBuilder(
-            animation: _laserPosition,
-            builder: (context, child) {
-              final topPos =
-                  scanWindow.top + (scanWindow.height * _laserPosition.value);
-              return Positioned(
-                top: topPos,
-                left: scanWindow.left + 10,
-                width: scanWindow.width - 20,
-                child: Container(
-                  height: 2.5,
-                  decoration: BoxDecoration(
-                    color: AppTheme.brandPrimary,
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppTheme.brandPrimary.withValues(alpha: 0.8),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-
-          // 4. Instrucción en pantalla
-          Positioned(
-            top: scanWindow.bottom + 24,
-            left: 20,
-            right: 20,
-            child: const Column(
-              children: [
-                Text(
-                  'Apunta al código de barras o QR',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                SizedBox(height: 6),
-                Text(
-                  'El código se agregará automáticamente al carrito',
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 13,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-
-          // 5. Barra superior con Controles (Volver, Linterna, Girar)
+          // Barra Superior Flotante
           SafeArea(
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.5),
-                      shape: BoxShape.circle,
+                  IconButton.filled(
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.black.withValues(alpha: 0.5),
+                      foregroundColor: Colors.white,
                     ),
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                      tooltip: 'Cerrar',
+                    icon: const Icon(Icons.arrow_back_rounded),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                  if (!_permissionDenied)
+                    Row(
+                      children: [
+                        // Botón Linterna
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: ValueListenableBuilder<MobileScannerState>(
+                            valueListenable: _controller,
+                            builder: (context, state, child) {
+                              final isFlashOn = state.torchState == TorchState.on;
+                              return IconButton(
+                                icon: Icon(
+                                  isFlashOn
+                                      ? Icons.flash_on_rounded
+                                      : Icons.flash_off_rounded,
+                                  color: isFlashOn ? Colors.yellow : Colors.white,
+                                ),
+                                onPressed: () => _controller.toggleTorch(),
+                                tooltip: 'Linterna',
+                              );
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Botón Girar Cámara
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            shape: BoxShape.circle,
+                          ),
+                          child: ValueListenableBuilder<MobileScannerState>(
+                            valueListenable: _controller,
+                            builder: (context, state, child) {
+                              return IconButton(
+                                icon: const Icon(
+                                  Icons.flip_camera_android_rounded,
+                                  color: Colors.white,
+                                ),
+                                onPressed: () => _controller.switchCamera(),
+                                tooltip: 'Girar Cámara',
+                              );
+                            },
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  Row(
-                    children: [
-                      // Botón Linterna
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: ValueListenableBuilder<MobileScannerState>(
-                          valueListenable: _controller,
-                          builder: (context, state, child) {
-                            final isFlashOn = state.torchState == TorchState.on;
-                            return IconButton(
-                              icon: Icon(
-                                isFlashOn
-                                    ? Icons.flash_on_rounded
-                                    : Icons.flash_off_rounded,
-                                color: isFlashOn ? Colors.yellow : Colors.white,
-                              ),
-                              onPressed: () => _controller.toggleTorch(),
-                              tooltip: 'Linterna',
-                            );
-                          },
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Botón Girar Cámara
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
-                        ),
-                        child: ValueListenableBuilder<MobileScannerState>(
-                          valueListenable: _controller,
-                          builder: (context, state, child) {
-                            return IconButton(
-                              icon: const Icon(
-                                Icons.flip_camera_android_rounded,
-                                color: Colors.white,
-                              ),
-                              onPressed: () => _controller.switchCamera(),
-                              tooltip: 'Girar Cámara',
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPermissionDeniedView({MobileScannerException? error}) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(28.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.camera_alt_outlined,
+                color: Colors.amberAccent,
+                size: 68,
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Permiso de Cámara Requerido',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Para escanear códigos de barras o QR con la cámara, presiona el botón de abajo para solicitar el permiso o actívalo en ajustes del dispositivo.',
+                style: TextStyle(
+                  color: Colors.white70,
+                  fontSize: 14,
+                  height: 1.4,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 32),
+              Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                alignment: WrapAlignment.center,
+                children: [
+                  ElevatedButton.icon(
+                    onPressed: () async {
+                      if (!kIsWeb) {
+                        final res = await Permission.camera.request();
+                        if (res.isPermanentlyDenied) {
+                          await openAppSettings();
+                          return;
+                        }
+                      }
+                      _requestPermissionAndStart();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.brandPrimary,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: const Icon(Icons.security_rounded),
+                    label: const Text('Autorizar Cámara'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => Navigator.pop(context),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white70,
+                      side: const BorderSide(color: Colors.white30),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                    icon: const Icon(Icons.close_rounded),
+                    label: const Text('Cancelar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -361,4 +421,3 @@ class ScannerOverlayPainter extends CustomPainter {
         oldDelegate.borderRadius != borderRadius;
   }
 }
-

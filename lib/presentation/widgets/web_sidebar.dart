@@ -10,6 +10,7 @@ import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 import '../screens/perfil_screen.dart';
 import '../screens/hardware_screen.dart';
+import '../screens/campos_personalizados_screen.dart';
 
 class WebSidebar extends StatelessWidget {
   final bool isCollapsed;
@@ -151,7 +152,7 @@ class WebSidebar extends StatelessWidget {
                   index: 2,
                   activeIcon: Icons.shopping_bag_rounded,
                   inactiveIcon: Icons.shopping_bag_outlined,
-                  label: 'Catálogo',
+                  label: 'Productos',
                   gradient: primaryGradient,
                   isDark: isDark,
                 ),
@@ -187,6 +188,16 @@ class WebSidebar extends StatelessWidget {
                       activeIcon: Icons.people_alt,
                       inactiveIcon: Icons.people_alt_outlined,
                       label: 'Usuarios',
+                      gradient: primaryGradient,
+                      isDark: isDark,
+                    ),
+                    const SizedBox(height: 8),
+                    _sidebarItem(
+                      context,
+                      index: 7,
+                      activeIcon: Icons.tune_rounded,
+                      inactiveIcon: Icons.tune_outlined,
+                      label: 'Campos',
                       gradient: primaryGradient,
                       isDark: isDark,
                     ),

@@ -197,27 +197,25 @@ class FormularioCamposDinamicos extends StatelessWidget {
                         onChanged: (val) => onValorChanged(campo.nombre, val.trim()),
                       ),
                     ),
-                    if (!kIsWeb) ...[
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        icon: const Icon(Icons.camera_alt_rounded),
-                        tooltip: 'Escanear con cámara',
-                        onPressed: () async {
-                          final code = await Navigator.push<String>(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => BarcodeScannerScreen(
-                                onScanned: (c) => Navigator.pop(context, c),
-                              ),
+                    const SizedBox(width: 8),
+                    IconButton.filledTonal(
+                      icon: const Icon(Icons.qr_code_scanner_rounded),
+                      tooltip: 'Escanear con cámara o lector',
+                      onPressed: () async {
+                        final code = await Navigator.push<String>(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => BarcodeScannerScreen(
+                              onScanned: (c) => Navigator.pop(context, c),
                             ),
-                          );
-                          if (code != null && code.isNotEmpty) {
-                            controller.text = code;
-                            onValorChanged(campo.nombre, code);
-                          }
-                        },
-                      ),
-                    ],
+                          ),
+                        );
+                        if (code != null && code.isNotEmpty) {
+                          controller.text = code;
+                          onValorChanged(campo.nombre, code);
+                        }
+                      },
+                    ),
                   ],
                 ),
               );

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -28,6 +28,7 @@ import 'presentation/screens/ventas_screen.dart';
 import 'presentation/screens/estadisticas_screen.dart';
 import 'presentation/screens/login_screen.dart';
 import 'presentation/screens/personalizacion_screen.dart';
+import 'presentation/screens/campos_personalizados_screen.dart';
 import 'presentation/widgets/web_sidebar.dart';
 import 'presentation/widgets/privacy_gate.dart';
 
