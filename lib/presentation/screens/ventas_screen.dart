@@ -13,7 +13,16 @@ import '../blocs/inventario/inventario_bloc.dart';
 import '../blocs/inventario/inventario_event.dart';
 import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/money.dart';
 import '../../core/widgets/app_toast.dart';
+import '../../core/widgets/app_loader.dart';
+import '../widgets/receipt_dialog.dart';
+import '../blocs/auth/auth_bloc.dart';
+import '../blocs/auth/auth_state.dart';
+import '../../core/di/service_locator.dart';
+import '../../core/hardware/hardware_service.dart';
+import '../../core/hardware/hardware_settings.dart';
+import 'hardware_screen.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
 class _CartItem {
@@ -34,7 +43,7 @@ class VentasScreen extends StatefulWidget {
 }
 
 class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderStateMixin {
-  final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+  NumberFormat get _fmt => Money.of(context);
   List<VentaModel> _ventas = [];
   List<Insumo> _productos = [];
   String _filtroFecha = 'Hoy';
@@ -42,6 +51,10 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
 
   final List<_CartItem> _carrito = [];
   late TabController _tabController;
+  final _busquedaCtrl = TextEditingController();
+  final _busquedaFocus = FocusNode();
+  String _busqueda = '';
+  bool _pilaAbierta = true;
 
   @override
   void initState() {
@@ -53,6 +66,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
   void _onTabChange() {
     if (activeTabNotifier.value == 3) {
       _dispatchLoadVentas();
+      _focusScanner();
     }
   }
 
@@ -60,6 +74,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
   void dispose() {
     activeTabNotifier.removeListener(_onTabChange);
     _tabController.dispose();
+    _busquedaCtrl.dispose();
+    _busquedaFocus.dispose();
     super.dispose();
   }
 
@@ -106,6 +122,11 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
           _carrito.removeAt(idx);
         } else {
           item.cantidad += delta;
+          // El último producto tocado/escaneado queda al tope de la pila.
+          if (delta > 0 && idx != _carrito.length - 1) {
+            _carrito.removeAt(idx);
+            _carrito.add(item);
+          }
         }
       } else if (delta > 0) {
         if (1 > producto.stockActual) {
@@ -115,6 +136,120 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
         _carrito.add(_CartItem(producto: producto, cantidad: 1));
       }
     });
+  }
+
+  /// Fija una cantidad exacta (p. ej. 12 piezas escaneadas una sola vez).
+  void _setCantidad(Insumo producto, int cantidad) {
+    setState(() {
+      final idx = _carrito.indexWhere((i) => i.producto.id == producto.id);
+      if (idx < 0) return;
+      if (cantidad <= 0) {
+        _carrito.removeAt(idx);
+        return;
+      }
+      var q = cantidad;
+      if (q > producto.stockActual) {
+        q = producto.stockActual.toInt();
+        AppToast.showWarning(
+          context,
+          'Solo hay $q disponibles de ${producto.nombre}',
+          title: 'Stock insuficiente',
+        );
+      }
+      _carrito[idx].cantidad = q.toDouble();
+    });
+  }
+
+  Future<void> _pedirCantidad(_CartItem item) async {
+    final ctrl = TextEditingController(text: item.cantidad.toInt().toString());
+    ctrl.selection = TextSelection(baseOffset: 0, extentOffset: ctrl.text.length);
+    final result = await showDialog<int>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(item.producto.nombre, maxLines: 2, overflow: TextOverflow.ellipsis),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            labelText: 'Cantidad',
+            helperText: 'Disponibles: ${item.producto.stockActual.toInt()}',
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, int.tryParse(v)),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, int.tryParse(ctrl.text)),
+            child: const Text('Aplicar'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result != null) _setCantidad(item.producto, result);
+    _busquedaFocus.requestFocus();
+  }
+
+  List<Insumo> get _productosFiltrados {
+    final q = _busqueda.trim().toLowerCase();
+    if (q.isEmpty) return _productos;
+    return _productos.where((p) {
+      final texto = '${p.nombre} ${p.sabor ?? ''} ${p.categoria} ${p.codigoBarras ?? ''} ${p.sku ?? ''}'.toLowerCase();
+      return texto.contains(q);
+    }).toList();
+  }
+
+  /// Un lector de código de barras/QR (USB o Bluetooth) escribe el código como
+  /// un teclado y envía Enter. Si el código coincide con un producto, se agrega
+  /// al carrito y el campo queda listo para el siguiente escaneo.
+  HardwareSettings get _hw => getIt<HardwareService>().settings;
+
+  /// Deja el cursor en el campo de escaneo (si la terminal lo tiene activado).
+  void _focusScanner() {
+    if (_hw.scannerEnabled && _hw.scannerFocusOnOpen) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _busquedaFocus.requestFocus();
+      });
+    }
+  }
+
+  void _onScanSubmit(String value) {
+    final code = value.trim();
+    if (code.isEmpty) return;
+    // Con el lector desactivado, o con un código más corto que el mínimo
+    // configurado, Enter solo busca (no agrega al carrito).
+    if (!_hw.scannerEnabled || !_hw.scannerAutoAdd || code.length < _hw.scannerMinLength) {
+      _busquedaFocus.requestFocus();
+      return;
+    }
+    final match = _productos.where((p) =>
+        (p.codigoBarras != null && p.codigoBarras!.trim() == code) ||
+        (p.sku != null && p.sku!.trim().toLowerCase() == code.toLowerCase()));
+    if (match.isNotEmpty) {
+      _updateCantidad(match.first, 1);
+      _busquedaCtrl.clear();
+      setState(() => _busqueda = '');
+    } else if (_productosFiltrados.isEmpty) {
+      AppToast.showWarning(context, 'No hay productos con el código "$code"', title: 'Sin coincidencias');
+    }
+    _busquedaFocus.requestFocus();
+  }
+
+  /// Traduce errores técnicos de la base de datos a mensajes entendibles.
+  String _mensajeError(String raw) {
+    final r = raw.toLowerCase();
+    if (r.contains('pgrst204') || r.contains('schema cache') || r.contains('column')) {
+      return 'La base de datos no está actualizada con las columnas de ventas. '
+          'Ejecuta migracion_alinear_esquema_app.sql en Supabase y reintenta.';
+    }
+    if (r.contains('socket') || r.contains('network') || r.contains('timeout') || r.contains('failed host')) {
+      return 'Sin conexión con el servidor. Revisa tu internet y reintenta.';
+    }
+    if (r.contains('row-level security') || r.contains('42501')) {
+      return 'Tu usuario no tiene permiso para registrar ventas.';
+    }
+    return raw.replaceAll('Exception: ', '');
   }
 
   int _getCantidad(Insumo producto) {
@@ -135,10 +270,14 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
               _ventas = state.ventas;
             }
             return Scaffold(
-              backgroundColor: const Color(0xFFF8F9FA),
+              // backgroundColor eliminado para respetar scaffoldBackgroundColor del tema
               appBar: AppBar(
                 title: const Text('Ventas'),
+                actions: [_buildHardwareActions()],
                 bottom: TabBar(
+                  labelColor: Theme.of(context).brightness == Brightness.dark ? Color(0xFF38BDF8) : context.brand,
+                  unselectedLabelColor: Theme.of(context).brightness == Brightness.dark ? Color(0xFF94A3B8) : context.textMuted,
+                  indicatorColor: Theme.of(context).brightness == Brightness.dark ? Color(0xFF38BDF8) : context.brand,
                   controller: _tabController,
                   tabs: const [
                     Tab(icon: Icon(Icons.storefront), text: 'Tienda'),
@@ -160,6 +299,71 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     );
   }
 
+  /// Estado de la impresora + apertura manual del cajón + acceso a la configuración.
+  Widget _buildHardwareActions() {
+    final hw = getIt<HardwareService>();
+    return ListenableBuilder(
+      listenable: hw,
+      builder: (context, _) {
+        final color = switch (hw.status) {
+          PrinterStatus.ready => Colors.green,
+          PrinterStatus.unverified => Colors.blue,
+          PrinterStatus.offline => Colors.red,
+          PrinterStatus.notConfigured => null,
+        };
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (hw.settings.printerConnection == PrinterConnection.network &&
+                hw.status == PrinterStatus.ready)
+              IconButton(
+                tooltip: 'Abrir cajón',
+                icon: const Icon(Icons.lock_open_rounded),
+                onPressed: () async {
+                  final r = await hw.openDrawer();
+                  if (!mounted) return;
+                  if (r.ok) {
+                    AppToast.showSuccess(context, r.message);
+                  } else {
+                    AppToast.showError(context, r.message, title: 'Cajón');
+                  }
+                },
+              ),
+            IconButton(
+              tooltip: color == null ? 'Configurar equipos de caja' : hw.statusDetail,
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const HardwareScreen()),
+                );
+                _focusScanner();
+              },
+              icon: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  const Icon(Icons.print_rounded),
+                  if (color != null)
+                    Positioned(
+                      right: -2,
+                      top: -2,
+                      child: Container(
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: context.surfaceColor, width: 1.5),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   // ================== TAB: TIENDA (POS) ==================
 
   Widget _buildTiendaTab() {
@@ -170,10 +374,10 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
           children: [
             Icon(Icons.inventory_2_outlined, size: 56, color: Colors.grey[300]),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'No hay productos registrados para venta.\nAgrega productos en el Inventario primero.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: AppTheme.textSecondary),
+              style: TextStyle(color: context.textMuted),
             ),
           ],
         ),
@@ -183,59 +387,94 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     final totalIngresos = _carrito.fold(0.0, (sum, i) => sum + i.subtotal);
     final totalPiezas = _carrito.fold(0.0, (sum, i) => sum + i.cantidad).toInt();
 
+    final productos = _productosFiltrados;
+
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: TextField(
+            controller: _busquedaCtrl,
+            focusNode: _busquedaFocus,
+            textInputAction: TextInputAction.done,
+            onChanged: (v) => setState(() => _busqueda = v),
+            onSubmitted: _onScanSubmit,
+            decoration: InputDecoration(
+              hintText: _hw.scannerEnabled ? 'Buscar o escanear código de barras / QR' : 'Buscar producto',
+              prefixIcon: const Icon(Icons.qr_code_scanner_rounded),
+              suffixIcon: _busqueda.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      onPressed: () {
+                        _busquedaCtrl.clear();
+                        setState(() => _busqueda = '');
+                      },
+                    ),
+            ),
+          ),
+        ),
+        _buildPila(),
         Expanded(
-          child: ListView.builder(
+          child: productos.isEmpty
+              ? Center(
+                  child: Text('Sin resultados para "$_busqueda"',
+                      style: TextStyle(color: context.textMuted)),
+                )
+              : ListView.builder(
             padding: const EdgeInsets.all(16),
-            itemCount: _productos.length,
+            itemCount: productos.length,
             itemBuilder: (context, index) {
-              final p = _productos[index];
+              final p = productos[index];
               final cantidad = _getCantidad(p);
               final nombreCompleto = '${p.nombre}${p.sabor != null && p.sabor!.isNotEmpty ? " - " + p.sabor! : ""}';
               final bool hasImage = p.imagenPath != null && p.imagenPath!.isNotEmpty;
 
               return Container(
+                margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: context.surfaceColor,
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: cantidad > 0 ? AppTheme.primary.withOpacity(0.2) : Colors.black.withOpacity(0.05),
+                      color: cantidad > 0 ? context.brand.withValues(alpha: 0.2) : Colors.black.withValues(alpha: 0.05),
                       blurRadius: 10,
                       spreadRadius: cantidad > 0 ? 1 : 0,
                     ),
                   ],
                   border: Border.all(
-                    color: cantidad > 0 ? AppTheme.primary : Colors.transparent,
+                    color: cantidad > 0 ? context.brand : Colors.transparent,
                     width: 2,
                   ),
                 ),
                 child: Row(
                   children: [
-                    Expanded(
-                      flex: 4,
+                    Padding(
+                      padding: const EdgeInsets.all(12),
                       child: ClipRRect(
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
-                        child: hasImage
-                            ? (p.imagenPath!.startsWith('http') 
-                                ? Image.network(
-                                    p.imagenPath!,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (c,e,s) => _buildPlaceholder(),
-                                  )
-                                : kIsWeb 
-                                    ? _buildPlaceholder() 
-                                    : Image.file(
-                                        io.File(p.imagenPath!),
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (c,e,s) => _buildPlaceholder(),
-                                      ))
-                            : _buildPlaceholder(),
+                        borderRadius: BorderRadius.circular(12),
+                        child: SizedBox(
+                          width: 54,
+                          height: 54,
+                          child: hasImage
+                              ? (p.imagenPath!.startsWith("http")
+                                  ? Image.network(
+                                      p.imagenPath!,
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (c, e, s) => _buildPlaceholder(),
+                                    )
+                                  : kIsWeb
+                                      ? _buildPlaceholder()
+                                      : Image.file(
+                                          io.File(p.imagenPath!),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (c, e, s) => _buildPlaceholder(),
+                                        ))
+                              : _buildPlaceholder(),
+                        ),
                       ),
                     ),
                     Expanded(
-                      flex: 5,
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(
@@ -249,12 +488,12 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                                     nombreCompleto,
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Theme.of(context).brightness == Brightness.dark ? Color(0xFFF8FAFC) : context.textMain),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
                                     _fmt.format(p.precioVenta),
-                                    style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.primary, fontSize: 16),
+                                    style: TextStyle(fontWeight: FontWeight.w800, color: context.brand, fontSize: 16),
                                   ),
                                   Text(
                                     'Disp: ${p.stockActual.toInt()} ${p.unidad}',
@@ -276,7 +515,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                             else
                               Container(
                                 decoration: BoxDecoration(
-                                  color: AppTheme.primary.withOpacity(0.05),
+                                  color: context.brand.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(20)
                                 ),
                                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
@@ -299,11 +538,11 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                                       onTap: p.stockActual > cantidad ? () => _updateCantidad(p, 1) : null,
                                       child: Container(
                                         decoration: BoxDecoration(
-                                          color: p.stockActual > cantidad ? AppTheme.primary.withOpacity(0.2) : Colors.grey.shade200, 
+                                          color: p.stockActual > cantidad ? context.brand.withValues(alpha: 0.2) : Colors.grey.shade200, 
                                           shape: BoxShape.circle
                                         ),
                                         padding: const EdgeInsets.all(6),
-                                        child: Icon(Icons.add, size: 16, color: p.stockActual > cantidad ? AppTheme.primary : Colors.grey),
+                                        child: Icon(Icons.add, size: 16, color: p.stockActual > cantidad ? context.brand : Colors.grey),
                                       ),
                                     ),
                                   ],
@@ -325,8 +564,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
-              boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, -4))],
+              color: context.surfaceColor,
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, -4))],
             ),
             child: SafeArea(
               child: Row(
@@ -335,7 +574,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('$totalPiezas artículos', style: const TextStyle(color: Colors.grey, fontSize: 13, fontWeight: FontWeight.w600)),
-                      Text(_fmt.format(totalIngresos), style: const TextStyle(color: AppTheme.textPrimary, fontSize: 20, fontWeight: FontWeight.bold)),
+                      Text(_fmt.format(totalIngresos), style: TextStyle(color: context.textMain, fontSize: 20, fontWeight: FontWeight.bold)),
                     ],
                   ),
                   const Spacer(),
@@ -344,7 +583,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      backgroundColor: AppTheme.primary,
+                      backgroundColor: context.brand,
                       foregroundColor: Colors.white,
                     ),
                     icon: const Icon(Icons.shopping_cart_checkout, color: Colors.white),
@@ -358,15 +597,176 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     );
   }
 
+  // ---- Pila de caja: lo último escaneado/agregado queda arriba ----
+
+  Widget _buildPila() {
+    if (_carrito.isEmpty) return const SizedBox.shrink();
+    final items = _carrito.reversed.toList();
+    final total = _carrito.fold(0.0, (s, i) => s + i.subtotal);
+    final piezas = _carrito.fold(0.0, (s, i) => s + i.cantidad).toInt();
+    final maxH = (MediaQuery.of(context).size.height * 0.34).clamp(140.0, 300.0);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.brand.withValues(alpha: 0.45)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _pilaAbierta = !_pilaAbierta),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+              child: Row(
+                children: [
+                  Icon(Icons.layers_rounded, color: context.brand, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'En caja · $piezas pzs · ${_fmt.format(total)}',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () {
+                      setState(() => _carrito.clear());
+                      _busquedaFocus.requestFocus();
+                    },
+                    child: const Text('Vaciar'),
+                  ),
+                  Icon(_pilaAbierta ? Icons.expand_less_rounded : Icons.expand_more_rounded,
+                      color: context.textMuted),
+                  const SizedBox(width: 4),
+                ],
+              ),
+            ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child: _pilaAbierta
+                ? ConstrainedBox(
+                    constraints: BoxConstraints(maxHeight: maxH),
+                    child: ListView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: items.length,
+                      itemBuilder: (_, i) => _pilaRow(items[i], isLast: i == 0),
+                    ),
+                  )
+                : const SizedBox(width: double.infinity),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _pilaRow(_CartItem item, {required bool isLast}) {
+    final p = item.producto;
+    final nombre = '${p.nombre}${p.sabor != null && p.sabor!.isNotEmpty ? " - ${p.sabor}" : ""}';
+    final q = item.cantidad.toInt();
+
+    Widget stepButton(IconData icon, VoidCallback? onTap, Color color) => InkResponse(
+          onTap: onTap,
+          radius: 22,
+          child: Container(
+            padding: EdgeInsets.all(isLast ? 8 : 6),
+            decoration: BoxDecoration(color: color.withValues(alpha: 0.14), shape: BoxShape.circle),
+            child: Icon(icon, size: isLast ? 20 : 16, color: onTap == null ? context.textMuted : color),
+          ),
+        );
+
+    return TweenAnimationBuilder<double>(
+      key: ValueKey('pila_${p.id}'),
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      builder: (context, v, child) => Opacity(
+        opacity: v,
+        child: Transform.translate(offset: Offset(0, (1 - v) * -10), child: child),
+      ),
+      child: Container(
+        padding: EdgeInsets.symmetric(horizontal: 14, vertical: isLast ? 10 : 6),
+        decoration: BoxDecoration(
+          color: isLast ? context.brand.withValues(alpha: 0.10) : null,
+          border: Border(top: BorderSide(color: context.borderColor)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isLast)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text('ÚLTIMO AGREGADO',
+                          style: TextStyle(
+                              fontSize: 9.5,
+                              letterSpacing: 0.6,
+                              fontWeight: FontWeight.w800,
+                              color: context.brand)),
+                    ),
+                  Text(nombre,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontWeight: isLast ? FontWeight.w700 : FontWeight.w600,
+                          fontSize: isLast ? 15 : 13)),
+                  Text('${_fmt.format(p.precioVenta)} c/u · ${_fmt.format(item.subtotal)}',
+                      style: TextStyle(fontSize: 11.5, color: context.textMuted)),
+                ],
+              ),
+            ),
+            stepButton(Icons.remove_rounded, () => _updateCantidad(p, -1), Colors.red),
+            // Toca el número para escribir la cantidad exacta.
+            InkWell(
+              borderRadius: BorderRadius.circular(8),
+              onTap: () => _pedirCantidad(item),
+              child: Container(
+                constraints: BoxConstraints(minWidth: isLast ? 52 : 40),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                alignment: Alignment.center,
+                child: Text('$q',
+                    style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: isLast ? 20 : 15,
+                        decoration: TextDecoration.underline,
+                        decorationStyle: TextDecorationStyle.dotted)),
+              ),
+            ),
+            stepButton(Icons.add_rounded,
+                p.stockActual > item.cantidad ? () => _updateCantidad(p, 1) : null, context.brand),
+            const SizedBox(width: 4),
+            InkResponse(
+              onTap: () => _setCantidad(p, 0),
+              radius: 18,
+              child: Padding(
+                padding: const EdgeInsets.all(6),
+                child: Icon(Icons.delete_outline_rounded, size: 18, color: context.textMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildPlaceholder() {
     return Container(
-      color: Colors.grey.shade100,
-      child: Center(child: Icon(Icons.icecream, size: 40, color: Colors.grey.shade300)),
+      color: context.brand.withValues(alpha: 0.08),
+      child: Center(child: Icon(Icons.icecream, size: 40, color: context.brand.withValues(alpha: 0.35))),
     );
   }
 
   void _showCobrarModal() {
     final montoRecibidoCtrl = TextEditingController();
+    final screenContext = context;
     bool isSubmitting = false;
 
     showModalBottomSheet(
@@ -385,8 +785,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
               bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
               top: 20, left: 20, right: 20,
             ),
-            decoration: const BoxDecoration(
-              color: Colors.white,
+            decoration: BoxDecoration(
+              color: context.surfaceColor,
               borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
             ),
             child: Column(
@@ -410,7 +810,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                         contentPadding: EdgeInsets.zero,
                         title: Text(nombre, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                         subtitle: Text('${item.cantidad.toInt()} x ${_fmt.format(item.producto.precioVenta)}'),
-                        trailing: Text(_fmt.format(item.subtotal), style: const TextStyle(fontWeight: FontWeight.bold, color: AppTheme.primary)),
+                        trailing: Text(_fmt.format(item.subtotal), style: TextStyle(fontWeight: FontWeight.bold, color: context.brand)),
                       );
                     },
                   ),
@@ -421,7 +821,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     const Text('Total a Cobrar:', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                    Text(_fmt.format(totalIngresos), style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: AppTheme.primary)),
+                    Text(_fmt.format(totalIngresos), style: TextStyle(fontSize: 24, fontWeight: FontWeight.w900, color: context.brand)),
                   ],
                 ),
                 const SizedBox(height: 16),
@@ -435,7 +835,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: InputDecoration(
                           labelText: 'Efectivo Recibido',
-                          prefixIcon: const Icon(Icons.attach_money, color: AppTheme.primary, size: 20),
+                          prefixIcon: Icon(Icons.attach_money, color: context.brand, size: 20),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                         ),
@@ -454,17 +854,17 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                         return Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           decoration: BoxDecoration(
-                            color: isError ? Colors.red.shade50 : (isOk ? Colors.green.shade50 : Colors.grey.shade50),
+                            color: (isError ? Colors.red : (isOk ? Colors.green : context.textMuted)).withValues(alpha: 0.10),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: isError ? Colors.red.shade200 : (isOk ? Colors.green.shade300 : Colors.grey.shade300)),
+                            border: Border.all(color: (isError ? Colors.red : (isOk ? Colors.green : context.textMuted)).withValues(alpha: 0.35)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(isError ? 'Falta' : 'Cambio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isError ? Colors.red.shade700 : AppTheme.textSecondary)),
+                              Text(isError ? 'Falta' : 'Cambio', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isError ? Colors.red.shade700 : context.textMuted)),
                               Text(
-                                montoRecibido > 0 ? _fmt.format(cambio.abs()) : '\$0.00',
-                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isError ? Colors.red.shade700 : (isOk ? Colors.green.shade700 : AppTheme.textPrimary)),
+                                _fmt.format(montoRecibido > 0 ? cambio.abs() : 0),
+                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: isError ? Colors.red.shade700 : (isOk ? Colors.green.shade700 : context.textMain)),
                               ),
                             ],
                           ),
@@ -479,14 +879,10 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                   child: Row(
                     children: [
                       _buildMontoRapidoBtn('Exacto', totalIngresos, montoRecibidoCtrl, setModalState),
-                      const SizedBox(width: 8),
-                      _buildMontoRapidoBtn('\$50', 50.0, montoRecibidoCtrl, setModalState),
-                      const SizedBox(width: 8),
-                      _buildMontoRapidoBtn('\$100', 100.0, montoRecibidoCtrl, setModalState),
-                      const SizedBox(width: 8),
-                      _buildMontoRapidoBtn('\$200', 200.0, montoRecibidoCtrl, setModalState),
-                      const SizedBox(width: 8),
-                      _buildMontoRapidoBtn('\$500', 500.0, montoRecibidoCtrl, setModalState),
+                      for (final m in const [50.0, 100.0, 200.0, 500.0]) ...[
+                        const SizedBox(width: 8),
+                        _buildMontoRapidoBtn('${Money.symbolOf(ctx)}${m.toInt()}', m, montoRecibidoCtrl, setModalState),
+                      ],
                     ],
                   ),
                 ),
@@ -502,7 +898,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        backgroundColor: AppTheme.primary,
+                        backgroundColor: context.brand,
                         foregroundColor: Colors.white,
                       ),
                       onPressed: (!canSubmit || isSubmitting) ? null : () async {
@@ -542,40 +938,81 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                           detalles: detalles,
                         );
 
-                        context.read<VentaBloc>().add(RegistrarVentaEvent(venta));
+                        final ventaBloc = context.read<VentaBloc>();
+                        final inventarioBloc = context.read<InventarioBloc>();
+
+                        // Esperar el resultado real del guardado: solo si la venta
+                        // quedó registrada se descuenta el stock y se muestra el ticket.
+                        final resultado = ventaBloc.stream
+                            .firstWhere((s) => s is VentaSuccess || s is VentaError)
+                            .timeout(const Duration(seconds: 20));
+                        ventaBloc.add(RegistrarVentaEvent(venta));
+
+                        VentaState resultadoFinal;
+                        try {
+                          resultadoFinal = await resultado;
+                        } catch (_) {
+                          resultadoFinal = VentaError('Tiempo de espera agotado. Revisa tu conexión.');
+                        }
+
+                        if (resultadoFinal is VentaError) {
+                          setModalState(() => isSubmitting = false);
+                          if (mounted) {
+                            AppToast.showError(
+                              screenContext,
+                              _mensajeError(resultadoFinal.message),
+                              title: 'No se pudo guardar la venta',
+                            );
+                          }
+                          return;
+                        }
 
                         for (final item in _carrito) {
                           final nuevoStock = item.producto.stockActual - item.cantidad;
-                          
-                          // No copyWith available so recreate Insumo with updated stock
-                          final prodActualizado = Insumo(
-                            id: item.producto.id,
-                            nombre: item.producto.nombre,
-                            sabor: item.producto.sabor,
-                            tamano: item.producto.tamano,
-                            precioVenta: item.producto.precioVenta,
-                            stockActual: nuevoStock,
-                            stockMinimo: item.producto.stockMinimo,
-                            categoria: item.producto.categoria,
-                            imagenPath: item.producto.imagenPath,
-                            tipo: item.producto.tipo,
-                            costoUnitario: item.producto.costoUnitario,
-                            unidad: item.producto.unidad,
-                            userId: item.producto.userId,
-                            tenantId: item.producto.tenantId,
-                            updatedAt: DateTime.now(),
-                          );
-                          
-                          context.read<InventarioBloc>().add(UpdateInsumoEvent(prodActualizado));
+                          final prodActualizado = item.producto.copyWith(stockActual: nuevoStock, updatedAt: DateTime.now());
+                          inventarioBloc.add(UpdateInsumoEvent(prodActualizado));
                         }
-
                         if (mounted) {
-                          AppToast.showSuccess(context, 'Venta registrada con éxito');
+                          final efectivo = montoRecibido > 0 ? montoRecibido : null;
+                          final authState = screenContext.read<AuthBloc>().state;
+                          final tenant = authState is Authenticated ? authState.tenant : null;
+                          final fmtVenta = Money.of(screenContext);
+                          final hw = getIt<HardwareService>();
+
                           setState(() { _carrito.clear(); });
                           Navigator.pop(context);
+
+                          // Imprime / abre el cajón SOLO si la terminal tiene el
+                          // equipo configurado y conectado. No bloquea la venta.
+                          hw
+                              .onSaleCompleted(
+                                venta: venta,
+                                fmt: fmtVenta,
+                                tenant: tenant,
+                                efectivoRecibido: efectivo,
+                              )
+                              .then((avisos) {
+                            if (!mounted) return;
+                            for (final a in avisos) {
+                              AppToast.showWarning(
+                                screenContext,
+                                '${a.message} La venta sí quedó guardada.',
+                                title: 'Equipo de caja',
+                              );
+                            }
+                          });
+
+                          if (hw.settings.showReceiptOnScreen) {
+                            ReceiptDialog.show(screenContext, venta, efectivoRecibido: efectivo);
+                          } else {
+                            AppToast.showSuccess(screenContext, 'Venta registrada');
+                          }
+                          _focusScanner();
                         }
                       },
-                      child: const Text('Completar Venta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                      child: isSubmitting
+                          ? const AppSpinner(size: 22, color: Colors.white)
+                          : const Text('Completar Venta', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                     );
                   }),
                 ),
@@ -590,8 +1027,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
   Widget _buildMontoRapidoBtn(String label, double monto, TextEditingController ctrl, StateSetter setModalState) {
     return ActionChip(
       label: Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-      backgroundColor: Colors.white,
-      side: BorderSide(color: Colors.grey.shade300),
+      backgroundColor: context.surfaceColor,
+      side: BorderSide(color: context.borderColor),
       onPressed: () => setModalState(() => ctrl.text = monto.toStringAsFixed(2)),
     );
   }
@@ -600,10 +1037,32 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
 
   Widget _buildHistorialTab(VentaState state) {
     if (state is VentaLoading || state is VentaInitial) {
-      return const Center(child: CircularProgressIndicator());
+      return const AppLoader(message: 'Cargando ventas...', icon: Icons.point_of_sale_rounded);
     }
     if (state is VentaError) {
-      return Center(child: Text('Error: ${state.message}'));
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.cloud_off_rounded, size: 52, color: context.textMuted),
+              const SizedBox(height: 12),
+              Text(
+                _mensajeError(state.message),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: context.textMuted),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _dispatchLoadVentas,
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      );
     }
     return Column(
       children: [
@@ -621,7 +1080,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
       decoration: BoxDecoration(
         gradient: AppTheme.salesGradient,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: const Color(0xFFFF6584).withOpacity(0.3), blurRadius: 12, offset: const Offset(0, 4))],
+        boxShadow: [BoxShadow(color: const Color(0xFFFF6584).withValues(alpha: 0.3), blurRadius: 12, offset: const Offset(0, 4))],
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -665,14 +1124,14 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               decoration: BoxDecoration(
                 gradient: selected ? AppTheme.salesGradient : null,
-                color: selected ? null : Colors.white,
+                color: selected ? null : context.surfaceColor,
                 borderRadius: BorderRadius.circular(20),
-                boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 4)],
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)],
               ),
               child: Text(
                 f,
                 style: TextStyle(
-                  color: selected ? Colors.white : AppTheme.textSecondary,
+                  color: selected ? Colors.white : context.textMuted,
                   fontSize: 13,
                   fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
                 ),
@@ -692,9 +1151,9 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
           children: [
             Icon(Icons.shopping_cart_outlined, size: 56, color: Colors.grey[300]),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Sin ventas en este período',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 15),
+              style: TextStyle(color: context.textMuted, fontSize: 15),
             ),
           ],
         ),
@@ -726,9 +1185,9 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))],
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.04), blurRadius: 8, offset: const Offset(0, 2))],
       ),
       child: ExpansionTile(
         tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -738,12 +1197,12 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
           decoration: BoxDecoration(gradient: AppTheme.salesGradient, borderRadius: BorderRadius.circular(14)),
           child: const Icon(Icons.icecream_rounded, color: Colors.white, size: 22),
         ),
-        title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: AppTheme.textPrimary)),
-        subtitle: Text(subtitulo, style: const TextStyle(fontSize: 12, color: AppTheme.textSecondary)),
+        title: Text(titulo, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15, color: context.textMain)),
+        subtitle: Text(subtitulo, style: TextStyle(fontSize: 12, color: context.textMuted)),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(_fmt.format(v.totalIngresos), style: const TextStyle(fontWeight: FontWeight.w700, color: AppTheme.primary, fontSize: 15)),
+            Text(_fmt.format(v.totalIngresos), style: TextStyle(fontWeight: FontWeight.w700, color: context.brand, fontSize: 15)),
             const SizedBox(width: 8),
             GestureDetector(
               onTap: () => _confirmDelete(v),
@@ -759,8 +1218,8 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Expanded(child: Text('• ${d.insumoNombre ?? "Producto"}', style: const TextStyle(fontSize: 13, color: AppTheme.textPrimary))),
-                    Text('${d.cantidad.toInt()} pzs × ${_fmt.format(d.precioVentaUnitario)} = ${_fmt.format(d.total)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.textSecondary)),
+                    Expanded(child: Text('• ${d.insumoNombre ?? "Producto"}', style: TextStyle(fontSize: 13, color: context.textMain))),
+                    Text('${d.cantidad.toInt()} pzs × ${_fmt.format(d.precioVentaUnitario)} = ${_fmt.format(d.total)}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: context.textMuted)),
                   ],
                 ),
               )),

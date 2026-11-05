@@ -116,8 +116,8 @@ class SectionHeader extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            color: AppTheme.textPrimary,
+          style: TextStyle(
+            color: Theme.of(context).brightness == Brightness.dark ? Color(0xFFF8FAFC) : context.textMain,
             fontSize: 17,
             fontWeight: FontWeight.w600,
           ),
@@ -127,8 +127,8 @@ class SectionHeader extends StatelessWidget {
             onTap: onAction,
             child: Text(
               actionLabel!,
-              style: const TextStyle(
-                color: AppTheme.primary,
+              style: TextStyle(
+                color: Theme.of(context).brightness == Brightness.dark ? const Color(0xFF38BDF8) : AppTheme.primary,
                 fontSize: 13,
                 fontWeight: FontWeight.w500,
               ),
@@ -150,7 +150,7 @@ class StockBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: stockBajo ? const Color(0xFFFFEEEE) : const Color(0xFFEEFFF5),
+        color: (stockBajo ? Colors.red : Colors.green).withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(

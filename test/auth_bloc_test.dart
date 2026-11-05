@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nevero_app/domain/models/tenant_model.dart';
 import 'package:nevero_app/domain/models/usuario_perfil.dart';
 import 'package:nevero_app/domain/repositories/auth_repository.dart';
 import 'package:nevero_app/presentation/blocs/auth/auth_bloc.dart';
@@ -17,6 +18,19 @@ class FakeAuthRepository implements AuthRepository {
 
   @override
   Stream<UsuarioPerfil?> get onAuthStateChanges => Stream.value(mockUser);
+
+  @override
+  Future<UsuarioPerfil> acceptPrivacyNotice(String version) async => mockUser!;
+
+  @override
+  Future<TenantModel?> getTenant(String tenantId) async => null;
+
+  @override
+  Future<TenantModel> updateTenant(TenantModel tenant) async => tenant;
+
+  @override
+  Future<UsuarioPerfil> updateAvatar(String style, String seed) async =>
+      mockUser!;
 
   @override
   Future<UsuarioPerfil?> signInWithEmail(String email, String password) async {

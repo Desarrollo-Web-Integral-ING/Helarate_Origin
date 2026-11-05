@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
@@ -27,29 +27,47 @@ import 'presentation/screens/inventario_venta_screen.dart';
 import 'presentation/screens/ventas_screen.dart';
 import 'presentation/screens/estadisticas_screen.dart';
 import 'presentation/screens/login_screen.dart';
-import 'presentation/screens/perfil_screen.dart';
+import 'presentation/screens/personalizacion_screen.dart';
+import 'presentation/widgets/web_sidebar.dart';
+import 'presentation/widgets/privacy_gate.dart';
 
 import 'core/widgets/indexed_stack_resume.dart';
+import 'core/utils/money.dart';
+import 'core/hardware/hardware_service.dart';
+import 'core/widgets/app_loader.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Inicialización de Variables de Entorno y Supabase
-  await dotenv.load(fileName: '.env');
+  // Detección automática de entorno: DEV (Local/Docker) vs PROD (Nube)
+  const appEnv = String.fromEnvironment('ENV', defaultValue: 'dev');
+  final envFile = appEnv == 'prod' ? '.env.production' : '.env.development';
+  
+  try {
+    await dotenv.load(fileName: envFile);
+    debugPrint('🚀 [ENTORNO] Cargado con éxito: $envFile');
+  } catch (e) {
+    debugPrint('⚠️ [ENTORNO] Error cargando $envFile ($e). Intentando fallback a .env');
+    await dotenv.load(fileName: '.env');
+  }
+
   final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';
   final supabaseKey = dotenv.env['SUPABASE_ANON_KEY'] ?? '';
-  print('--- HELARATE DEBUG: VARIABLES DE ENTORNO ---');
-  print('SUPABASE_URL: $supabaseUrl');
-  print('SUPABASE_ANON_KEY (longitud): ${supabaseKey.length}');
+  debugPrint('🔌 [SUPABASE CONECTANDO A]: $supabaseUrl');
 
   await Supabase.initialize(
     url: supabaseUrl,
     publishableKey: supabaseKey,
   );
-  print('--- HELARATE DEBUG: SUPABASE INICIALIZADO ---');
 
   // Inicialización de Inyector de Dependencias
   setupServiceLocator();
+  // Equipos de esta terminal (impresora, cajón, lector). No bloquea el arranque si falla.
+  try {
+    await getIt<HardwareService>().load();
+  } catch (e) {
+    debugPrint('Hardware: $e');
+  }
 
   await initializeDateFormatting('es_MX', null);
 
@@ -91,33 +109,82 @@ class NeveroApp extends StatelessWidget {
           )..add(LoadDashboardEvent()),
         ),
       ],
-      child: MaterialApp(
-        title: 'Mi Nevería',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.theme,
-        home: BlocBuilder<AuthBloc, AuthState>(
-          builder: (context, state) {
-            if (state is Authenticated) {
-              if (state.usuario.rol == 'superadmin') {
-                return const SuperAdminScreen();
-              }
-              return const MainNavigation();
-            }
-            if (state is AuthInitial) {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(),
+      // Solo reconstruye el MaterialApp cuando cambia algo que afecta al tema,
+      // al título, a la moneda o a la pantalla raíz. Evita trabas innecesarias.
+      child: BlocBuilder<AuthBloc, AuthState>(
+        buildWhen: (prev, next) => _appKey(prev) != _appKey(next),
+        builder: (context, state) {
+          String appTitle = 'Punto de Venta';
+          Color brandColor = AppTheme.primary;
+          bool isDark = state.isDarkMode;
+          String moneda = '\$';
+
+          if (state is Authenticated && state.tenant != null) {
+            appTitle = state.tenant!.nombre;
+            brandColor = AppTheme.parseHexColor(state.tenant!.colorPrimario);
+            isDark = state.isDarkMode;
+            moneda = state.tenant!.moneda;
+          }
+
+          final Widget home;
+          if (state is Authenticated) {
+            home = state.usuario.rol == 'superadmin'
+                ? const PrivacyGate(key: ValueKey('superadmin'), child: SuperAdminScreen())
+                : const PrivacyGate(key: ValueKey('main'), child: MainNavigation());
+          } else if (state is AuthInitial) {
+            home = const AppSplash(key: ValueKey('splash'));
+          } else {
+            home = const LoginScreen(key: ValueKey('login'));
+          }
+
+          return MaterialApp(
+            title: appTitle,
+            debugShowCheckedModeBanner: false,
+            themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+            // Los ThemeData se memorizan en AppTheme: alternar claro/oscuro no
+            // vuelve a construirlos.
+            theme: AppTheme.getTheme(brandColor, false),
+            darkTheme: AppTheme.getTheme(brandColor, true),
+            themeAnimationDuration: const Duration(milliseconds: 280),
+            themeAnimationCurve: Curves.easeInOut,
+            builder: (context, child) =>
+                MoneyScope(simbolo: moneda, child: child ?? const SizedBox()),
+            home: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 350),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, anim) => FadeTransition(
+                opacity: anim,
+                child: ScaleTransition(
+                  scale: Tween(begin: 0.98, end: 1.0).animate(anim),
+                  child: child,
                 ),
-              );
-            }
-            return const LoginScreen();
-          },
-        ),
+              ),
+              child: home,
+            ),
+          );
+        },
       ),
     );
   }
-}
 
+  /// Clave que resume lo que realmente cambia la apariencia raíz de la app.
+  static Object _appKey(AuthState s) {
+    if (s is Authenticated) {
+      final t = s.tenant;
+      return (
+        'auth',
+        s.usuario.rol,
+        t?.nombre,
+        t?.colorPrimario,
+        s.isDarkMode,
+        t?.moneda,
+      );
+    }
+    if (s is AuthInitial) return ('initial', s.isDarkMode);
+    return ('unauth', s.isDarkMode);
+  }
+}
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
 
@@ -130,6 +197,7 @@ class _MainNavigationState extends State<MainNavigation> {
   bool _isSidebarCollapsed = false;
 
   final _keys = [
+    GlobalKey(),
     GlobalKey(),
     GlobalKey(),
     GlobalKey(),
@@ -150,6 +218,7 @@ class _MainNavigationState extends State<MainNavigation> {
       VentasScreen(key: _keys[3]),
       EstadisticasScreen(key: _keys[4]),
       UsuariosScreen(key: _keys[5]),
+      PersonalizacionScreen(key: _keys[6]),
     ];
   }
 
@@ -161,33 +230,40 @@ class _MainNavigationState extends State<MainNavigation> {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
-    final isLargeScreen = width >= 800;
-
+    final isWeb = MediaQuery.of(context).size.width >= 800;
     final authState = context.watch<AuthBloc>().state;
     final isEmployee =
         authState is Authenticated && authState.usuario.isEmployee;
 
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final navBgColor = isDark ? const Color(0xFF0F172A) : Colors.white;
+    final borderColor = isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black.withValues(alpha: 0.06);
+
     return Scaffold(
-      body: Row(
-        children: [
-          if (isLargeScreen) _buildWebSidebar(isEmployee),
-          Expanded(
-            child: IndexedStack(
-              index: _currentIndex,
-              children: _screens,
-            ),
-          ),
-        ],
-      ),
-      bottomNavigationBar: isLargeScreen
+      body: isWeb
+          ? Row(
+              children: [
+                WebSidebar(
+                  isCollapsed: _isSidebarCollapsed,
+                  isEmployee: isEmployee,
+                  currentIndex: _currentIndex,
+                  onTabSelected: _onTabTap,
+                  onToggleCollapse: () =>
+                      setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                ),
+                Expanded(child: _buildTabs()),
+              ],
+            )
+          : _buildTabs(),
+      bottomNavigationBar: isWeb
           ? null
           : Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: navBgColor,
+                border: Border(top: BorderSide(color: borderColor, width: 1)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.08),
+                    color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.06),
                     blurRadius: 20,
                     offset: const Offset(0, -4),
                   ),
@@ -204,8 +280,8 @@ class _MainNavigationState extends State<MainNavigation> {
                           0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
                       _navItem(1, Icons.inventory_2_rounded,
                           Icons.inventory_2_outlined, 'Insumos'),
-                      _navItem(2, Icons.icecream_rounded,
-                          Icons.icecream_outlined, 'Nieves'),
+                      _navItem(2, Icons.shopping_bag_rounded,
+                          Icons.shopping_bag_outlined, 'Catálogo'),
                       _navItem(3, Icons.point_of_sale_rounded,
                           Icons.point_of_sale_outlined, 'Ventas'),
                       if (!isEmployee)
@@ -219,315 +295,113 @@ class _MainNavigationState extends State<MainNavigation> {
     );
   }
 
-  Widget _buildWebSidebar(bool isEmployee) {
-    final authState = context.read<AuthBloc>().state;
-    final user = authState is Authenticated ? authState.usuario : null;
-    final initials = user == null || user.nombre.trim().isEmpty
-        ? 'UN'
-        : user.nombre
-            .trim()
-            .split(' ')
-            .map((e) => e.isNotEmpty ? e[0] : '')
-            .take(2)
-            .join()
-            .toUpperCase();
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeInOut,
-      width: _isSidebarCollapsed ? 80 : 260,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(4, 0),
+  /// Mantiene el estado de cada pestaña y anima la entrada de la activa.
+  Widget _buildTabs() {
+    return IndexedStack(
+      index: _currentIndex,
+      children: [
+        for (var i = 0; i < _screens.length; i++)
+          _TabFade(
+            active: i == _currentIndex,
+            child: RepaintBoundary(child: _screens[i]),
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Logo & Collapse Icon Toggle Header
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
-            child: Row(
-              mainAxisAlignment: _isSidebarCollapsed
-                  ? MainAxisAlignment.center
-                  : MainAxisAlignment.spaceBetween,
-              children: [
-                if (!_isSidebarCollapsed) ...[
-                  Row(
-                    children: [
-                      ShaderMask(
-                        shaderCallback: (bounds) =>
-                            AppTheme.primaryGradient.createShader(bounds),
-                        child: const Icon(
-                          Icons.icecream_rounded,
-                          color: Colors.white,
-                          size: 28,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      const Text(
-                        'Helarate',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 20,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ],
-                  ),
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left_rounded,
-                        color: AppTheme.textSecondary),
-                    onPressed: () => setState(() => _isSidebarCollapsed = true),
-                  ),
-                ] else ...[
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right_rounded,
-                        color: AppTheme.textSecondary),
-                    onPressed: () =>
-                        setState(() => _isSidebarCollapsed = false),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-
-          // Menu navigation items
-          Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              children: [
-                _sidebarItem(0, Icons.grid_view_rounded,
-                    Icons.grid_view_outlined, 'Inicio'),
-                const SizedBox(height: 8),
-                _sidebarItem(1, Icons.inventory_2_rounded,
-                    Icons.inventory_2_outlined, 'Insumos'),
-                const SizedBox(height: 8),
-                _sidebarItem(2, Icons.icecream_rounded, Icons.icecream_outlined,
-                    'Nieves'),
-                const SizedBox(height: 8),
-                _sidebarItem(3, Icons.point_of_sale_rounded,
-                    Icons.point_of_sale_outlined, 'Ventas'),
-                const SizedBox(height: 8),
-                if (!isEmployee) ...[
-                  _sidebarItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
-                  const SizedBox(height: 8),
-                  if (user != null && (user.rol == 'dueño' || user.rol == 'admin' || user.rol == 'superadmin')) ...[
-                    _sidebarItem(5, Icons.people_alt, Icons.people_alt_outlined, 'Usuarios'),
-                    const SizedBox(height: 8),
-                  ],
-                ],
-              ],
-            ),
-          ),
-
-          // Spacer & profile/logout footers
-          if (user != null) ...[
-            const Divider(height: 1, thickness: 1),
-            const SizedBox(height: 8),
-            // Sección de perfil: abre la pantalla completa de Mi Perfil / ARCO
-            GestureDetector(
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PerfilScreen()),
-                );
-              },
-              child: Tooltip(
-                message: _isSidebarCollapsed
-                    ? '${user.nombre} (${user.rol.toUpperCase()})'
-                    : '',
-                child: Padding(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: _isSidebarCollapsed
-                        ? MainAxisAlignment.center
-                        : MainAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: AppTheme.primary,
-                        child: Text(
-                          initials,
-                          style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                      if (!_isSidebarCollapsed) ...[
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                user.nombre,
-                                style: const TextStyle(
-                                  color: AppTheme.textPrimary,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              Text(
-                                user.rol.toUpperCase(),
-                                style: TextStyle(
-                                  color: user.isEmployee
-                                      ? Colors.blue
-                                      : Colors.purple,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
-
-            // Logout row at the very bottom
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              child: Tooltip(
-                message: _isSidebarCollapsed ? 'Cerrar Sesión' : '',
-                child: GestureDetector(
-                  onTap: () {
-                    context.read<AuthBloc>().add(SignOutRequested());
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.red[50],
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Row(
-                      mainAxisAlignment: _isSidebarCollapsed
-                          ? MainAxisAlignment.center
-                          : MainAxisAlignment.start,
-                      children: [
-                        const Icon(
-                          Icons.logout_rounded,
-                          color: Colors.red,
-                          size: 20,
-                        ),
-                        if (!_isSidebarCollapsed) ...[
-                          const SizedBox(width: 12),
-                          const Text(
-                            'Cerrar Sesión',
-                            style: TextStyle(
-                              color: Colors.red,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-        ],
-      ),
-    );
-  }
-
-  Widget _sidebarItem(
-      int index, IconData activeIcon, IconData inactiveIcon, String label) {
-    final isActive = _currentIndex == index;
-    final itemContent = AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: isActive ? AppTheme.primaryGradient : null,
-        color: isActive ? null : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisAlignment: _isSidebarCollapsed
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
-        children: [
-          Icon(
-            isActive ? activeIcon : inactiveIcon,
-            color: isActive ? Colors.white : AppTheme.textSecondary,
-            size: 22,
-          ),
-          if (!_isSidebarCollapsed) ...[
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: TextStyle(
-                color: isActive ? Colors.white : AppTheme.textPrimary,
-                fontSize: 14,
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-
-    return Tooltip(
-      message: _isSidebarCollapsed ? label : '',
-      child: GestureDetector(
-        onTap: () => _onTabTap(index),
-        child: itemContent,
-      ),
+      ],
     );
   }
 
   Widget _navItem(
       int index, IconData activeIcon, IconData inactiveIcon, String label) {
     final isActive = _currentIndex == index;
+    final authState = context.read<AuthBloc>().state;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    Color brandColor = AppTheme.primary;
+    if (authState is Authenticated && authState.tenant != null) {
+      brandColor = AppTheme.parseHexColor(authState.tenant!.colorPrimario);
+    }
+    final primaryGradient = AppTheme.createCustomGradient(brandColor);
+
     return GestureDetector(
       onTap: () => _onTabTap(index),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         decoration: BoxDecoration(
-          gradient: isActive ? AppTheme.primaryGradient : null,
+          gradient: isActive ? primaryGradient : null,
           borderRadius: BorderRadius.circular(14),
+          border: isActive
+              ? Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1)
+              : null,
         ),
         child: Row(
           children: [
             Icon(
               isActive ? activeIcon : inactiveIcon,
-              color: isActive ? Colors.white : AppTheme.textSecondary,
+              color: isActive
+                  ? Colors.white
+                  : (isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary),
               size: 22,
             ),
             if (isActive) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 8),
               Text(
                 label,
                 style: const TextStyle(
                   color: Colors.white,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               ),
             ],
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Fundido + leve desplazamiento cada vez que una pestaña pasa a ser la activa.
+class _TabFade extends StatefulWidget {
+  final bool active;
+  final Widget child;
+  const _TabFade({required this.active, required this.child});
+
+  @override
+  State<_TabFade> createState() => _TabFadeState();
+}
+
+class _TabFadeState extends State<_TabFade>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 280),
+    value: widget.active ? 1 : 0,
+  );
+  late final Animation<double> _fade =
+      CurvedAnimation(parent: _c, curve: Curves.easeOut);
+  late final Animation<Offset> _slide = Tween(
+    begin: const Offset(0, 0.02),
+    end: Offset.zero,
+  ).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutCubic));
+
+  @override
+  void didUpdateWidget(_TabFade old) {
+    super.didUpdateWidget(old);
+    if (widget.active && !old.active) {
+      _c.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FadeTransition(
+      opacity: _fade,
+      child: SlideTransition(position: _slide, child: widget.child),
     );
   }
 }

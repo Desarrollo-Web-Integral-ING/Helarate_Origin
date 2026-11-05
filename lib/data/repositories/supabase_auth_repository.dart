@@ -1,13 +1,12 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../domain/models/usuario_perfil.dart';
+import '../../domain/models/tenant_model.dart';
 import '../../domain/repositories/auth_repository.dart';
 
 class SupabaseAuthRepository implements AuthRepository {
   final _client = Supabase.instance.client;
 
   Future<UsuarioPerfil?> _getUserProfile(String userId) async {
-    // El correo vive en auth.users (Supabase Auth), no en la tabla 'profiles',
-    // así que se toma de la sesión actual y se agrega al perfil combinado.
     final sessionUser = _client.auth.currentUser;
     final email = (sessionUser?.id == userId ? sessionUser?.email : null) ?? '';
 
@@ -19,8 +18,6 @@ class SupabaseAuthRepository implements AuthRepository {
           .maybeSingle();
 
       if (response == null) {
-        // Si por alguna razón el trigger de base de datos no creó el perfil,
-        // lo creamos dinámicamente.
         final defaultProfile = {
           'id': userId,
           'nombre': sessionUser?.userMetadata?['nombre'] ?? 'Usuario Nuevo',
@@ -40,7 +37,6 @@ class SupabaseAuthRepository implements AuthRepository {
       return UsuarioPerfil.fromJson({...response, 'email': email});
     } catch (e) {
       print('Error al obtener perfil: $e');
-      // Retornar un perfil básico por seguridad para evitar crash
       return UsuarioPerfil(
         id: userId,
         nombre: 'Usuario',
@@ -75,20 +71,38 @@ class SupabaseAuthRepository implements AuthRepository {
     );
     if (response.user == null) return null;
 
-    try {
-      await _client
-          .from('profiles')
-          .update({'aceptado_aviso_at': DateTime.now().toIso8601String()}).eq(
-              'id', response.user!.id);
-
-      await _logAuditoria('LOGIN', 'profiles', response.user!.id,
-          'Inicio de sesión de usuario y renovación de aceptación del Aviso de Privacidad.');
-    } catch (e) {
-      print(
-          'Error al actualizar fecha de aceptación de aviso en inicio de sesión: $e');
-    }
+    // La aceptación del aviso se guarda una sola vez (ver acceptPrivacyNotice);
+    // iniciar sesión ya no la sobrescribe.
+    await _logAuditoria('LOGIN', 'profiles', response.user!.id,
+        'Inicio de sesión de usuario.');
 
     return await _getUserProfile(response.user!.id);
+  }
+
+  @override
+  Future<UsuarioPerfil> acceptPrivacyNotice(String version) async {
+    final user = _client.auth.currentUser;
+    if (user == null) throw Exception('No hay una sesión activa.');
+    final now = DateTime.now();
+
+    try {
+      await _client.from('profiles').update({
+        'aceptado_aviso_at': now.toIso8601String(),
+        'aviso_version': version,
+      }).eq('id', user.id);
+    } catch (_) {
+      // Bases de datos sin la columna aviso_version: guardar solo la fecha.
+      await _client
+          .from('profiles')
+          .update({'aceptado_aviso_at': now.toIso8601String()}).eq('id', user.id);
+    }
+
+    await _logAuditoria('PRIVACY_ACCEPT', 'profiles', user.id,
+        'Aceptación del Aviso de Privacidad (versión $version).');
+
+    final perfil = await _getUserProfile(user.id);
+    return (perfil ?? UsuarioPerfil(id: user.id, nombre: 'Usuario', rol: 'empleado', createdAt: now))
+        .copyWith(aceptadoAvisoAt: perfil?.aceptadoAvisoAt ?? now);
   }
 
   @override
@@ -124,14 +138,18 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  
   Future<UsuarioPerfil?> signUpNewBusiness(String email, String password, String nombre, String empresa) async {
     final res = await _client.auth.signUp(email: email, password: password);
     final user = res.user;
     if (user == null) throw Exception('No se pudo crear el usuario');
     
-    // Create tenant
-    final tenantRes = await _client.from('tenants').insert({'nombre': empresa}).select().single();
+    // Create tenant con valores predeterminados de personalización
+    final tenantRes = await _client.from('tenants').insert({
+      'nombre': empresa,
+      'tipo_negocio': 'General',
+      'color_primario': '#2563EB',
+      'activo': true,
+    }).select().single();
     final tenantId = tenantRes['id'];
 
     // Create profile
@@ -151,6 +169,32 @@ class SupabaseAuthRepository implements AuthRepository {
       tenantId: tenantId as String?,
       createdAt: DateTime.now(),
     );
+  }
+
+  @override
+  Future<TenantModel?> getTenant(String tenantId) async {
+    try {
+      final res = await _client
+          .from('tenants')
+          .select()
+          .eq('id', tenantId)
+          .maybeSingle();
+      if (res == null) return null;
+      return TenantModel.fromJson(res);
+    } catch (e) {
+      print('Error al obtener datos del tenant: $e');
+      return null;
+    }
+  }
+
+  @override
+  Future<TenantModel> updateTenant(TenantModel tenant) async {
+    final updateData = tenant.toJson()..remove('id');
+    await _client
+        .from('tenants')
+        .update(updateData)
+        .eq('id', tenant.id);
+    return tenant;
   }
 
   @override
@@ -175,6 +219,29 @@ class SupabaseAuthRepository implements AuthRepository {
       print('Error al borrar perfil: $e');
     }
     await signOut();
+  }
+
+  @override
+  Future<UsuarioPerfil> updateAvatar(String style, String seed) async {
+    final user = _client.auth.currentUser;
+    if (user == null) {
+      throw Exception('No hay una sesión activa.');
+    }
+
+    try {
+      await _client.from('profiles').update({
+        'avatar_style': style,
+        'avatar_seed': seed,
+      }).eq('id', user.id);
+    } catch (e) {
+      print('Aviso: columnas de avatar en DB no configuradas aún, se actualizará localmente: $e');
+    }
+
+    final actualizado = await _getUserProfile(user.id);
+    if (actualizado == null) {
+      throw Exception('No se pudo confirmar la actualización del avatar.');
+    }
+    return actualizado.copyWith(avatarStyle: style, avatarSeed: seed);
   }
 
   @override

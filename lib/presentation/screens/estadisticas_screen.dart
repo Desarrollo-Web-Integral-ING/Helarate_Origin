@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -7,6 +8,7 @@ import '../blocs/venta/venta_bloc.dart';
 import '../blocs/venta/venta_event.dart';
 import '../blocs/venta/venta_state.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/money.dart';
 import '../widgets/stat_card.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
@@ -18,7 +20,7 @@ class EstadisticasScreen extends StatefulWidget {
 }
 
 class _EstadisticasScreenState extends State<EstadisticasScreen> {
-  final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+  NumberFormat get _fmt => Money.of(context);
   List<VentaModel> _ventas = [];
 
   @override
@@ -87,7 +89,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       body: BlocBuilder<VentaBloc, VentaState>(
         builder: (context, state) {
           if (state is VentaLoading || state is VentaInitial) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           if (state is VentaError) {
             return Center(child: Text('Error: ${state.message}'));
@@ -133,14 +135,14 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
         children: [
           Icon(Icons.bar_chart_rounded, size: 64, color: Colors.grey[300]),
           const SizedBox(height: 16),
-          const Text('Sin datos aún',
+          Text('Sin datos aún',
               style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary)),
+                  color: context.textMain)),
           const SizedBox(height: 8),
-          const Text('Registra ventas para ver estadísticas',
-              style: TextStyle(color: AppTheme.textSecondary, fontSize: 14)),
+          Text('Registra ventas para ver estadísticas',
+              style: TextStyle(color: context.textMuted, fontSize: 14)),
         ],
       ),
     );
@@ -205,7 +207,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       height: 200,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -244,8 +246,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                   final idx = value.toInt();
                   if (idx < 0 || idx >= keys.length) return const SizedBox();
                   return Text(keys[idx],
-                      style: const TextStyle(
-                          fontSize: 10, color: AppTheme.textSecondary));
+                      style: TextStyle(
+                          fontSize: 10, color: context.textMuted));
                 },
               ),
             ),
@@ -280,7 +282,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -303,17 +305,17 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                   children: [
                     Expanded(
                       child: Text(e.key,
-                          style: const TextStyle(
+                          style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w500,
-                              color: AppTheme.textPrimary),
+                              color: context.textMain),
                           overflow: TextOverflow.ellipsis),
                     ),
                     Text('${e.value} pzs',
-                        style: const TextStyle(
+                        style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.primary)),
+                            color: context.brand)),
                   ],
                 ),
                 const SizedBox(height: 6),
@@ -322,9 +324,9 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                   child: LinearProgressIndicator(
                     value: pct,
                     minHeight: 8,
-                    backgroundColor: const Color(0xFFF0F1FF),
-                    valueColor: const AlwaysStoppedAnimation<Color>(
-                        AppTheme.primary),
+                    backgroundColor: context.brand.withValues(alpha: 0.12),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                        context.brand),
                   ),
                 ),
               ],
@@ -340,7 +342,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
     if (top.isEmpty) return const SizedBox();
     final total = top.values.fold(0, (a, b) => a + b);
     final colors = [
-      AppTheme.primary,
+      context.brand,
       const Color(0xFFFF6584),
       const Color(0xFF43E97B),
       const Color(0xFF4FACFE),
@@ -351,7 +353,7 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
       height: 220,
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: context.surfaceColor,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -410,8 +412,8 @@ class _EstadisticasScreenState extends State<EstadisticasScreen> {
                       width: 100,
                       child: Text(
                         e.key.split(' - ').first,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppTheme.textSecondary),
+                        style: TextStyle(
+                            fontSize: 11, color: context.textMuted),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),

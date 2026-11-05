@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
@@ -96,7 +97,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
       backgroundColor: AppTheme.background,
       appBar: AppBar(
         title: const Text('Panel de SuperAdmin'),
-        backgroundColor: AppTheme.primary,
+        backgroundColor: context.brand,
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
@@ -111,7 +112,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
           Expanded(
             flex: 2,
             child: Container(
-              color: Colors.white,
+              color: context.surfaceColor,
               child: Column(
                 children: [
                   const Padding(
@@ -121,7 +122,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
                   const Divider(height: 1),
                   Expanded(
                     child: _isLoadingTenants
-                      ? const Center(child: CircularProgressIndicator())
+                      ? const AppLoader()
                       : ListView.builder(
                           itemCount: _tenants.length,
                           itemBuilder: (context, idx) {
@@ -156,9 +157,9 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.admin_panel_settings, size: 48, color: AppTheme.primary),
+                        Icon(Icons.admin_panel_settings, size: 48, color: context.brand),
                         const SizedBox(height: 16),
-                        const Text('Dar de Alta Nueva Nevería', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                        const Text('Dar de Alta Nuevo Negocio / Empresa', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
                         const SizedBox(height: 24),
                         TextFormField(
                           controller: _empresaCtrl,
@@ -184,12 +185,12 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
                             style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                              backgroundColor: AppTheme.primary,
+                              backgroundColor: context.brand,
                               foregroundColor: Colors.white,
                             ),
                             onPressed: _isLoading ? null : _crearTenant,
                             child: _isLoading 
-                                ? const CircularProgressIndicator(color: Colors.white)
+                                ? const AppSpinner(size: 20, color: Colors.white)
                                 : const Text('Registrar Cliente', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                           ),
                         )

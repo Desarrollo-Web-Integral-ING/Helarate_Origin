@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +12,7 @@ import '../blocs/inventario/inventario_bloc.dart';
 import '../blocs/inventario/inventario_event.dart';
 import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/money.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
@@ -22,7 +24,7 @@ class InventarioVentaScreen extends StatefulWidget {
 }
 
 class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
-  final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+  NumberFormat get _fmt => Money.of(context);
   List<Insumo> _items = [];
   String _busqueda = '';
   String _filtroCategoria = 'Todos';
@@ -64,22 +66,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
 
   void _ajustarStock(Insumo p, int delta) {
     final nuevo = (p.stockActual + delta).clamp(0.0, 99999.0);
-    final actualizado = Insumo(
-      id: p.id,
-      nombre: p.nombre,
-      sabor: p.sabor,
-      tamano: p.tamano,
-      precioVenta: p.precioVenta,
-      stockActual: nuevo,
-      stockMinimo: p.stockMinimo,
-      categoria: p.categoria,
-      imagenPath: p.imagenPath,
-      tipo: p.tipo,
-      costoUnitario: p.costoUnitario,
-      unidad: p.unidad,
-      userId: p.userId,
-      updatedAt: DateTime.now(),
-    );
+    final actualizado = p.copyWith(stockActual: nuevo, updatedAt: DateTime.now());
     context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
   }
 
@@ -116,7 +103,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Inventario de Nieves'),
+        title: const Text('Catálogo de Productos'),
         actions: [
           IconButton(icon: const Icon(Icons.add_rounded), onPressed: () => _showForm()),
         ],
@@ -124,7 +111,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
       body: BlocBuilder<InventarioBloc, InventarioState>(
         builder: (context, state) {
           if (state is InventarioLoading || state is InventarioInitial) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           if (state is InventarioError) {
             return Center(child: Text('Error: ${state.message}'));
@@ -184,9 +171,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: TextField(
         onChanged: (v) => setState(() => _busqueda = v),
-        decoration: const InputDecoration(
-          hintText: 'Buscar nieve o sabor...',
-          prefixIcon: Icon(Icons.search_rounded, color: AppTheme.textSecondary),
+        decoration: InputDecoration(
+          hintText: 'Buscar producto o detalle...',
+          prefixIcon: Icon(Icons.search_rounded, color: context.textMuted),
         ),
       ),
     );
@@ -214,7 +201,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)],
               ),
               child: Text(cat, style: TextStyle(
-                color: selected ? Colors.white : AppTheme.textSecondary,
+                color: selected ? Colors.white : context.textMuted,
                 fontSize: 13,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
               )),
@@ -233,13 +220,13 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
           children: [
             const Text('🍧', style: TextStyle(fontSize: 48)),
             const SizedBox(height: 12),
-            const Text('Sin productos registrados',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+            Text('Sin productos registrados',
+                style: TextStyle(color: context.textMuted, fontSize: 15)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => _showForm(),
               icon: const Icon(Icons.add),
-              label: const Text('Agregar nieve'),
+              label: const Text('Agregar producto'),
             ),
           ],
         ),
@@ -256,8 +243,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     final agotado = p.stockActual == 0;
     final Color borderColor = agotado ? const Color(0xFFE53935)
         : p.stockBajo ? const Color(0xFFFFB74D) : Colors.transparent;
-    final Color bgColor = agotado ? const Color(0xFFFFF0F0)
-        : p.stockBajo ? const Color(0xFFFFFBF0) : Colors.white;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final Color bgColor = agotado ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF0F0))
+        : p.stockBajo ? (isDark ? const Color(0xFF451A03) : const Color(0xFFFFFBF0)) : (isDark ? const Color(0xFF1E293B) : Colors.white);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -273,15 +261,15 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
           ListTile(
             contentPadding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             leading: _avatar(context, p.imagenPath, p.nombre, agotado, p.stockBajo),
-            title: Text(p.nombre, style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.textPrimary)),
+            title: Text(p.nombre, style: TextStyle(
+                fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Color(0xFFF8FAFC) : context.textMain)),
             subtitle: Text(
               [
                 if (p.sabor != null && p.sabor!.isNotEmpty) p.sabor!,
                 p.categoria,
                 if (p.categoria == 'Vaso' && p.tamano != null && p.tamano!.isNotEmpty) p.tamano!,
               ].join(' · '),
-              style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 11, color: isDark ? Color(0xFF94A3B8) : context.textMuted),
             ),
             trailing: SizedBox(
               width: 80,
@@ -290,8 +278,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(_fmt.format(p.precioVenta),
-                      style: const TextStyle(fontWeight: FontWeight.w700,
-                          color: AppTheme.primary, fontSize: 13),
+                      style: TextStyle(fontWeight: FontWeight.w700,
+                          color: context.brand, fontSize: 13),
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   _stockChip(p),
@@ -313,7 +301,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                       style: TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 15,
                         color: agotado ? const Color(0xFFE53935)
-                            : p.stockBajo ? const Color(0xFFE65100) : AppTheme.textPrimary,
+                            : p.stockBajo ? Color(0xFFE65100) : context.textMain,
                       ),
                     ),
                   ),
@@ -321,7 +309,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 _qBtn(Icons.add, () => _ajustarStock(p, 1), false),
                 const SizedBox(width: 6),
                 _qBtn(Icons.edit_outlined, () => _showAjusteDialog(p), false,
-                    color: AppTheme.primary),
+                    color: context.brand),
               ],
             ),
           ),
@@ -447,8 +435,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: agotado ? const Color(0xFFFFEBEE)
-            : p.stockBajo ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+        color: agotado ? Colors.red.withValues(alpha: 0.14)
+            : p.stockBajo ? Colors.orange.withValues(alpha: 0.16) : Colors.green.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -482,11 +470,11 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
         width: 32, height: 32,
         decoration: BoxDecoration(
           color: disabled ? Colors.grey[200]
-              : (color ?? AppTheme.primary).withValues(alpha: 0.1),
+              : (color ?? context.brand).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 18,
-            color: disabled ? Colors.grey : (color ?? AppTheme.primary)),
+            color: disabled ? Colors.grey : (color ?? context.brand)),
       ),
     );
   }
@@ -510,22 +498,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
             onPressed: () {
               final val = double.tryParse(ctrl.text);
               if (val == null) return;
-              final actualizado = Insumo(
-                id: p.id,
-                nombre: p.nombre,
-                sabor: p.sabor,
-                tamano: p.tamano,
-                precioVenta: p.precioVenta,
-                stockActual: val,
-                stockMinimo: p.stockMinimo,
-                categoria: p.categoria,
-                imagenPath: p.imagenPath,
-                tipo: p.tipo,
-                costoUnitario: p.costoUnitario,
-                unidad: p.unidad,
-                userId: p.userId,
-                updatedAt: DateTime.now(),
-              );
+              final actualizado = p.copyWith(stockActual: val, updatedAt: DateTime.now());
               context.read<InventarioBloc>().add(UpdateInsumoEvent(actualizado));
               if (mounted) Navigator.pop(context);
             },
@@ -540,6 +513,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
     final saborCtrl = TextEditingController(text: producto?.sabor ?? '');
+    final codigoCtrl = TextEditingController(text: producto?.codigoBarras ?? '');
+    final skuCtrl = TextEditingController(text: producto?.sku ?? '');
     final precioCtrl = TextEditingController(
         text: producto?.precioVenta == 0 ? '' : producto?.precioVenta.toString() ?? '');
     final stockCtrl = TextEditingController(
@@ -562,8 +537,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             top: 20, left: 20, right: 20,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
@@ -577,9 +552,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                       decoration: BoxDecoration(color: Colors.grey[300],
                           borderRadius: BorderRadius.circular(2)))),
                   const SizedBox(height: 16),
-                  Text(isEdit ? 'Editar nieve' : 'Nueva nieve',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary)),
+                  Text(isEdit ? 'Editar producto' : 'Nuevo producto',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                          color: context.textMain)),
                   const SizedBox(height: 16),
                   // Imagen
                   GestureDetector(
@@ -595,7 +570,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                     child: Container(
                       height: 90,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F1FF),
+                        color: context.brand.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(14),
                         image: selectedImage != null
                             ? DecorationImage(
@@ -611,14 +586,14 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                 : null),
                       ),
                       child: (selectedImage == null && imagenPath == null)
-                          ? const Center(child: Column(
+                          ? Center(child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(Icons.add_photo_alternate_outlined,
-                                    color: AppTheme.textSecondary, size: 28),
+                                    color: context.textMuted, size: 28),
                                 SizedBox(height: 4),
                                 Text('Agregar imagen (opcional)',
-                                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                                    style: TextStyle(color: context.textMuted, fontSize: 12)),
                               ]))
                           : Align(
                               alignment: Alignment.topRight,
@@ -644,7 +619,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                     maxLength: 50,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
-                        return 'Por favor ingresa el nombre de la nieve';
+                        return 'Por favor ingresa el nombre del producto';
                       }
                       if (value.trim().length > 50) {
                         return 'El nombre no puede superar los 50 caracteres';
@@ -683,10 +658,33 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                     ),
                   ],
                   const SizedBox(height: 10),
+                  Row(children: [
+                    Expanded(
+                      flex: 3,
+                      child: TextFormField(
+                        controller: codigoCtrl,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Código de barras / QR',
+                          hintText: 'Escanéalo o escríbelo',
+                          prefixIcon: Icon(Icons.qr_code_scanner_rounded),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      flex: 2,
+                      child: TextFormField(
+                        controller: skuCtrl,
+                        decoration: const InputDecoration(labelText: 'SKU (opcional)'),
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
                   TextFormField(
                     controller: precioCtrl,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    decoration: const InputDecoration(labelText: 'Precio de venta (\$)'),
+                    decoration: InputDecoration(labelText: 'Precio de venta (${Money.symbolOf(context)})'),
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Por favor ingresa el precio';
@@ -774,7 +772,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                       sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
                                       tamano: categoria == 'Vaso' ? tamano : null,
                                       precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
-                                      costoUnitario: 0,
+                                      costoUnitario: producto.costoUnitario,
+                                      codigoBarras: codigoCtrl.text.trim().isEmpty ? null : codigoCtrl.text.trim(),
+                                      sku: skuCtrl.text.trim().isEmpty ? null : skuCtrl.text.trim(),
                                       stockActual: double.tryParse(stockCtrl.text) ?? 0,
                                       stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
                                       unidad: 'pzs',
@@ -784,6 +784,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                       imagenPath: finalImagenPath,
                                     )
                                   : Insumo(
+                                      codigoBarras: codigoCtrl.text.trim().isEmpty ? null : codigoCtrl.text.trim(),
+                                      sku: skuCtrl.text.trim().isEmpty ? null : skuCtrl.text.trim(),
                                       id: const Uuid().v4(),
                                       nombre: nombreCtrl.text.trim(),
                                       sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
@@ -817,10 +819,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
+                              child: AppSpinner(size: 20, color: Colors.white),
                             )
                           : Text(isEdit ? 'Guardar cambios' : 'Agregar'),
                     ),
@@ -839,7 +838,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Text('Eliminar nieve'),
+        title: const Text('Eliminar producto'),
         content: Text('¿Eliminar "${p.nombre}" del inventario?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),

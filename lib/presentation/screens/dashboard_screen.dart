@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import '../../domain/models/insumo.dart';
 import '../../domain/models/venta_model.dart';
@@ -10,12 +11,15 @@ import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/money.dart';
 import '../widgets/stat_card.dart';
 import 'inventario_produccion_screen.dart';
 import 'inventario_venta_screen.dart';
 import 'ventas_screen.dart';
 import 'estadisticas_screen.dart';
 import 'perfil_screen.dart';
+import 'personalizacion_screen.dart';
+import '../../core/widgets/business_icon_helper.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,7 +29,7 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+  NumberFormat get _fmt => Money.of(context);
 
   List<Insumo> _productosVenta = [];
   List<Insumo> _productosProduccion = [];
@@ -49,7 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   int get _stockBajoCount => _productosVenta.where((p) => p.stockBajo).length;
-  int get _nievesAgotadas => _productosVenta.where((p) => p.stockActual == 0 && p.categoria == 'Litro').length;
+  int get _productosAgotados => _productosVenta.where((p) => p.stockActual == 0).length;
   int get _insumosAgotados => _productosProduccion.where((p) => p.stockActual == 0).length;
   int get _insumosBajos => _productosProduccion.where((p) => p.stockBajo).length;
 
@@ -62,7 +66,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       body: BlocBuilder<DashboardBloc, DashboardState>(
         builder: (context, state) {
           if (state is DashboardLoading || state is DashboardInitial) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           if (state is DashboardError) {
             return Center(child: Text('Error: ${state.message}'));
@@ -88,7 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         const SizedBox(height: 28),
                         _buildQuickActions(),
                         const SizedBox(height: 28),
-                        if (_stockBajoCount > 0 || _nievesAgotadas > 0 || _insumosAgotados > 0) ...[
+                        if (_stockBajoCount > 0 || _productosAgotados > 0 || _insumosAgotados > 0) ...[
                           _buildAlertas(),
                           const SizedBox(height: 28),
                         ],
@@ -113,6 +117,15 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildAppBar() {
+    final authState = context.watch<AuthBloc>().state;
+    String nombreNegocio = 'Mi Negocio';
+    Color brandColor = context.brand;
+    if (authState is Authenticated && authState.tenant != null) {
+      nombreNegocio = authState.tenant!.nombre;
+      brandColor = AppTheme.parseHexColor(authState.tenant!.colorPrimario);
+    }
+    final primaryGradient = AppTheme.createCustomGradient(brandColor);
+
     return SliverAppBar(
       expandedHeight: 140,
       floating: false,
@@ -120,7 +133,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       backgroundColor: AppTheme.background,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
-          decoration: const BoxDecoration(gradient: AppTheme.primaryGradient),
+          decoration: BoxDecoration(gradient: primaryGradient),
           child: SafeArea(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
@@ -132,16 +145,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       color: Colors.white.withValues(alpha: 0.2),
                       borderRadius: BorderRadius.circular(14),
                     ),
-                    child: const Text('🍧', style: TextStyle(fontSize: 24)),
+                    child: Icon(
+                      authState is Authenticated ? BusinessIconHelper.getIcon(authState.tenant?.logoIcon) : Icons.storefront_rounded,
+                      color: Colors.white,
+                      size: 26,
+                    ),
                   ),
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      const Text(
-                        'Mi Nevería',
-                        style: TextStyle(
+                      Text(
+                        nombreNegocio,
+                        style: const TextStyle(
                           color: Colors.white,
                           fontSize: 22,
                           fontWeight: FontWeight.w700,
@@ -156,14 +173,58 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ],
                   ),
+                  const Spacer(),
+                  // Botón flotante HeroUI para cambio rápido de tema Claro / Oscuro con animación
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeInOut,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.25),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1),
+                    ),
+                    child: IconButton(
+                      icon: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 300),
+                        transitionBuilder: (child, anim) => RotationTransition(
+                          turns: anim,
+                          child: ScaleTransition(scale: anim, child: child),
+                        ),
+                        child: Icon(
+                          (authState is Authenticated && authState.tenant?.modoOscuro == true)
+                              ? Icons.dark_mode_rounded
+                              : Icons.light_mode_rounded,
+                          key: ValueKey(authState is Authenticated && authState.tenant?.modoOscuro == true),
+                          color: Colors.white,
+                          size: 20,
+                        ),
+                      ),
+                      tooltip: (authState is Authenticated && authState.tenant?.modoOscuro == true)
+                          ? 'Cambiar a modo Claro'
+                          : 'Cambiar a modo Oscuro',
+                      onPressed: () {
+                        context.read<AuthBloc>().add(ToggleThemeRequested());
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: const Icon(Icons.palette_rounded, color: Colors.white),
+                    tooltip: 'Personalizar Marca',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const PersonalizacionScreen()),
+                      );
+                    },
+                  ),
                   if (MediaQuery.of(context).size.width < 800) ...[
-                    const Spacer(),
                     IconButton(
                       icon: const Icon(Icons.account_circle_rounded, color: Colors.white),
                       tooltip: 'Mi Perfil / ARCO',
                       onPressed: () {
-                        final authState = context.read<AuthBloc>().state;
-                        if (authState is Authenticated) {
+                        final auth = context.read<AuthBloc>().state;
+                        if (auth is Authenticated) {
                           Navigator.push(
                             context,
                             MaterialPageRoute(builder: (_) => const PerfilScreen()),
@@ -191,21 +252,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildStatsGrid() {
     final authState = context.read<AuthBloc>().state;
     final isEmployee = authState is Authenticated && authState.usuario.isEmployee;
+    final screenWidth = MediaQuery.of(context).size.width;
+
+    // Ajuste responsivo profesional HeroUI:
+    // En pantallas anchas (Web/Tablet) usamos 4 columnas proporcionadas, en móvil 2 columnas
+    final int crossAxisCount = screenWidth >= 1100 ? 4 : (screenWidth >= 600 ? 2 : 2);
+    final double childAspectRatio = screenWidth >= 1100 ? 2.1 : (screenWidth >= 800 ? 1.8 : 1.45);
 
     if (isEmployee) {
       return GridView.count(
-        crossAxisCount: 2,
+        crossAxisCount: crossAxisCount > 2 ? 2 : crossAxisCount,
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         crossAxisSpacing: 14,
         mainAxisSpacing: 14,
-        childAspectRatio: 1.3,
+        childAspectRatio: childAspectRatio,
         children: [
           StatCard(
-            title: 'Productos en venta',
+            title: 'Productos en catálogo',
             value: '${_productosVenta.length}',
             subtitle: '$_stockBajoCount con stock bajo',
-            icon: Icons.icecream_rounded,
+            icon: Icons.inventory_rounded,
             gradient: AppTheme.stockGradient,
             onTap: () => _goTo(const InventarioVentaScreen()),
           ),
@@ -222,12 +289,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return GridView.count(
-      crossAxisCount: 2,
+      crossAxisCount: crossAxisCount,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: 14,
       mainAxisSpacing: 14,
-      childAspectRatio: 1.3,
+      childAspectRatio: childAspectRatio,
       children: [
         StatCard(
           title: 'Ventas hoy',
@@ -244,10 +311,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           onTap: () => _goTo(const EstadisticasScreen()),
         ),
         StatCard(
-          title: 'Productos en venta',
+          title: 'Productos en catálogo',
           value: '${_productosVenta.length}',
           subtitle: '$_stockBajoCount con stock bajo',
-          icon: Icons.icecream_rounded,
+          icon: Icons.inventory_rounded,
           gradient: AppTheme.stockGradient,
           onTap: () => _goTo(const InventarioVentaScreen()),
         ),
@@ -270,12 +337,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final actions = [
       _QuickAction('Insumos', Icons.inventory_2_rounded, AppTheme.productionGradient,
           () => _goTo(const InventarioProduccionScreen())),
-      _QuickAction('Nieves', Icons.icecream_rounded, AppTheme.stockGradient,
+      _QuickAction('Catálogo', Icons.shopping_bag_rounded, AppTheme.stockGradient,
           () => _goTo(const InventarioVentaScreen())),
-      _QuickAction('Ventas', Icons.point_of_sale_rounded, AppTheme.salesGradient,
+      _QuickAction('Caja Ventas', Icons.point_of_sale_rounded, AppTheme.salesGradient,
           () => _goTo(const VentasScreen())),
       if (!isEmployee)
-        _QuickAction('Stats', Icons.bar_chart_rounded, AppTheme.primaryGradient,
+        _QuickAction('Reportes', Icons.bar_chart_rounded, AppTheme.primaryGradient,
             () => _goTo(const EstadisticasScreen())),
     ];
 
@@ -316,10 +383,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           const SizedBox(height: 8),
           Text(
             a.label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: AppTheme.textPrimary,
+              color: Theme.of(context).brightness == Brightness.dark ? Color(0xFFCBD5E1) : context.textMain,
             ),
           ),
         ],
@@ -330,16 +397,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
   Widget _buildAlertas() {
     return Column(
       children: [
-        if (_nievesAgotadas > 0)
+        if (_productosAgotados > 0)
           _alertaBanner(
-            Icons.icecream_rounded,
-            '$_nievesAgotadas sabor(es) de nieve agotado(s)',
+            Icons.warning_amber_rounded,
+            '$_productosAgotados producto(s) agotado(s) en catálogo',
             'Revisar',
             const Color(0xFFE3F2FD),
             const Color(0xFF1565C0),
             () => _goTo(const InventarioVentaScreen()),
           ),
-        if (_nievesAgotadas > 0 && (_insumosAgotados > 0 || _insumosBajos > 0))
+        if (_productosAgotados > 0 && (_insumosAgotados > 0 || _insumosBajos > 0))
           const SizedBox(height: 8),
         if (_insumosAgotados > 0)
           _alertaBanner(
@@ -397,28 +464,35 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Widget _buildVentasRecientes() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final cardBg = isDark ? const Color(0xFF1E293B) : Colors.white;
+    final cardBorder = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+    final textSub = isDark ? Color(0xFF94A3B8) : context.textMuted;
+
     if (_ventasRecientes.isEmpty) {
       return Container(
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: cardBg,
           borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cardBorder, width: 1),
         ),
-        child: const Center(
+        child: Center(
           child: Text(
             'Sin ventas registradas aún',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+            style: TextStyle(color: textSub, fontSize: 14),
           ),
         ),
       );
     }
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: cardBg,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cardBorder, width: 1),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
+            color: Colors.black.withValues(alpha: isDark ? 0.25 : 0.04),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -429,7 +503,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         physics: const NeverScrollableScrollPhysics(),
         itemCount: _ventasRecientes.length,
         separatorBuilder: (_, __) =>
-            const Divider(height: 1, indent: 16, endIndent: 16),
+            Divider(height: 1, indent: 16, endIndent: 16, color: cardBorder),
         itemBuilder: (_, i) {
           final v = _ventasRecientes[i];
           return ListTile(
@@ -440,29 +514,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 gradient: AppTheme.salesGradient,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(Icons.icecream_rounded,
+              child: const Icon(Icons.point_of_sale_rounded,
                   color: Colors.white, size: 20),
             ),
             title: Text(
               v.detalles.isNotEmpty
                   ? '${v.detalles.first.insumoNombre ?? 'Venta'}${v.detalles.length > 1 ? ' + ${v.detalles.length - 1}' : ''}'
                   : 'Venta',
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: AppTheme.textPrimary,
+                color: isDark ? Color(0xFFF8FAFC) : context.textMain,
               ),
             ),
             subtitle: Text(
               DateFormat('dd/MM/yy HH:mm').format(v.fecha),
-              style: const TextStyle(
-                  fontSize: 12, color: AppTheme.textSecondary),
+              style: TextStyle(
+                  fontSize: 12, color: textSub),
             ),
             trailing: Text(
               _fmt.format(v.totalIngresos),
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w700,
-                color: AppTheme.primary,
+                color: isDark ? Color(0xFF38BDF8) : context.brand,
                 fontSize: 14,
               ),
             ),

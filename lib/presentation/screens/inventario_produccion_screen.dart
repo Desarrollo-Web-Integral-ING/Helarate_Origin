@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -11,6 +12,7 @@ import '../blocs/inventario/inventario_bloc.dart';
 import '../blocs/inventario/inventario_event.dart';
 import '../blocs/inventario/inventario_state.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/money.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
 
@@ -24,7 +26,7 @@ class InventarioProduccionScreen extends StatefulWidget {
 
 class _InventarioProduccionScreenState
     extends State<InventarioProduccionScreen> {
-  final _fmt = NumberFormat.currency(locale: 'es_MX', symbol: '\$');
+  NumberFormat get _fmt => Money.of(context);
   List<Insumo> _items = [];
   String _busqueda = '';
 
@@ -111,7 +113,7 @@ class _InventarioProduccionScreenState
       body: BlocBuilder<InventarioBloc, InventarioState>(
         builder: (context, state) {
           if (state is InventarioLoading || state is InventarioInitial) {
-            return const Center(child: CircularProgressIndicator());
+            return const AppLoader();
           }
           if (state is InventarioError) {
             return Center(child: Text('Error: ${state.message}'));
@@ -174,9 +176,9 @@ class _InventarioProduccionScreenState
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
       child: TextField(
         onChanged: (v) => setState(() => _busqueda = v),
-        decoration: const InputDecoration(
+        decoration: InputDecoration(
           hintText: 'Buscar insumo...',
-          prefixIcon: Icon(Icons.search_rounded, color: AppTheme.textSecondary),
+          prefixIcon: Icon(Icons.search_rounded, color: context.textMuted),
         ),
       ),
     );
@@ -190,8 +192,8 @@ class _InventarioProduccionScreenState
           children: [
             Icon(Icons.inventory_2_outlined, size: 56, color: Colors.grey[300]),
             const SizedBox(height: 12),
-            const Text('Sin insumos registrados',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 15)),
+            Text('Sin insumos registrados',
+                style: TextStyle(color: context.textMuted, fontSize: 15)),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () => _showForm(),
@@ -214,9 +216,10 @@ class _InventarioProduccionScreenState
     final Color borderColor = agotado
         ? const Color(0xFFE53935)
         : p.stockBajo ? const Color(0xFFFFB74D) : Colors.transparent;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final Color bgColor = agotado
-        ? const Color(0xFFFFF0F0)
-        : p.stockBajo ? const Color(0xFFFFFBF0) : Colors.white;
+        ? (isDark ? const Color(0xFF450A0A) : const Color(0xFFFFF0F0))
+        : p.stockBajo ? (isDark ? const Color(0xFF451A03) : const Color(0xFFFFFBF0)) : (isDark ? const Color(0xFF1E293B) : Colors.white);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -239,12 +242,12 @@ class _InventarioProduccionScreenState
                     ? const LinearGradient(colors: [Color(0xFFE53935), Color(0xFFEF9A9A)])
                     : p.stockBajo ? AppTheme.salesGradient : AppTheme.productionGradient),
             title: Text(p.nombre,
-                style: const TextStyle(fontWeight: FontWeight.w600,
-                    fontSize: 14, color: AppTheme.textPrimary)),
+                style: TextStyle(fontWeight: FontWeight.w600,
+                    fontSize: 14, color: isDark ? Color(0xFFF8FAFC) : context.textMain)),
             subtitle: Text(
               '${p.categoria} · ${_fmt.format(p.costoUnitario)}/${p.unidad}'
               '${p.stockMinimo > 0 ? ' · Mín: ${p.stockMinimo}' : ''}',
-              style: const TextStyle(fontSize: 11, color: AppTheme.textSecondary),
+              style: TextStyle(fontSize: 11, color: isDark ? Color(0xFF94A3B8) : context.textMuted),
             ),
             trailing: SizedBox(
               width: 80,
@@ -253,8 +256,8 @@ class _InventarioProduccionScreenState
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(_fmt.format(p.stockActual * p.costoUnitario),
-                      style: const TextStyle(fontWeight: FontWeight.w700,
-                          color: AppTheme.primary, fontSize: 13),
+                      style: TextStyle(fontWeight: FontWeight.w700,
+                          color: context.brand, fontSize: 13),
                       overflow: TextOverflow.ellipsis),
                   const SizedBox(height: 4),
                   _statusChip(agotado, p.stockBajo),
@@ -277,7 +280,7 @@ class _InventarioProduccionScreenState
                         fontWeight: FontWeight.w700, fontSize: 15,
                         color: agotado ? const Color(0xFFE53935)
                             : p.stockBajo ? const Color(0xFFE65100)
-                            : AppTheme.textPrimary,
+                            : (isDark ? Color(0xFFF8FAFC) : context.textMain),
                       ),
                     ),
                   ),
@@ -285,7 +288,7 @@ class _InventarioProduccionScreenState
                 _qBtn(Icons.add, () => _ajustarCantidad(p, 1), false),
                 const SizedBox(width: 6),
                 _qBtn(Icons.edit_outlined, () => _showAjusteDialog(p), false,
-                    color: AppTheme.primary),
+                    color: context.brand),
               ],
             ),
           ),
@@ -407,8 +410,8 @@ class _InventarioProduccionScreenState
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: agotado ? const Color(0xFFFFEBEE)
-            : stockBajo ? const Color(0xFFFFF3E0) : const Color(0xFFE8F5E9),
+        color: agotado ? Colors.red.withValues(alpha: 0.14)
+            : stockBajo ? Colors.orange.withValues(alpha: 0.16) : Colors.green.withValues(alpha: 0.14),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -442,11 +445,11 @@ class _InventarioProduccionScreenState
         width: 32, height: 32,
         decoration: BoxDecoration(
           color: disabled ? Colors.grey[200]
-              : (color ?? AppTheme.primary).withValues(alpha: 0.1),
+              : (color ?? context.brand).withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(icon, size: 18,
-            color: disabled ? Colors.grey : (color ?? AppTheme.primary)),
+            color: disabled ? Colors.grey : (color ?? context.brand)),
       ),
     );
   }
@@ -508,8 +511,8 @@ class _InventarioProduccionScreenState
             bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             top: 20, left: 20, right: 20,
           ),
-          decoration: const BoxDecoration(
-            color: Colors.white,
+          decoration: BoxDecoration(
+            color: context.surfaceColor,
             borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
           ),
           child: SingleChildScrollView(
@@ -524,8 +527,8 @@ class _InventarioProduccionScreenState
                           borderRadius: BorderRadius.circular(2)))),
                   const SizedBox(height: 16),
                   Text(isEdit ? 'Editar insumo' : 'Nuevo insumo',
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary)),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700,
+                          color: context.textMain)),
                   const SizedBox(height: 16),
                   GestureDetector(
                     onTap: () async {
@@ -540,7 +543,7 @@ class _InventarioProduccionScreenState
                     child: Container(
                       height: 90,
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF0F1FF),
+                        color: context.brand.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(14),
                         image: selectedImage != null
                             ? DecorationImage(
@@ -556,14 +559,14 @@ class _InventarioProduccionScreenState
                                 : null),
                       ),
                       child: (selectedImage == null && imagenPath == null)
-                          ? const Center(child: Column(
+                          ? Center(child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Icon(Icons.add_photo_alternate_outlined,
-                                    color: AppTheme.textSecondary, size: 28),
+                                    color: context.textMuted, size: 28),
                                 SizedBox(height: 4),
                                 Text('Agregar imagen (opcional)',
-                                    style: TextStyle(color: AppTheme.textSecondary, fontSize: 12)),
+                                    style: TextStyle(color: context.textMuted, fontSize: 12)),
                               ]))
                           : Align(
                               alignment: Alignment.topRight,
@@ -740,10 +743,7 @@ class _InventarioProduccionScreenState
                           ? const SizedBox(
                               height: 20,
                               width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
+                              child: const AppSpinner(size: 20, color: Colors.white),
                             )
                           : Text(isEdit ? 'Guardar cambios' : 'Agregar insumo'),
                     ),

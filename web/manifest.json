@@ -1,6 +1,6 @@
 {
-    "name": "Helarate",
-    "short_name": "Helarate",
+    "name": "Punto de Venta",
+    "short_name": "PuntoVenta",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#ffffff",

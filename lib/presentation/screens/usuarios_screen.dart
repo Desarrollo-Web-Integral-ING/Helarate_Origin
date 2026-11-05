@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_toast.dart';
@@ -103,7 +104,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(vertical: 16),
-                      backgroundColor: AppTheme.primary,
+                      backgroundColor: context.brand,
                       foregroundColor: Colors.white,
                     ),
                     onPressed: isSubmitting ? null : () async {
@@ -127,7 +128,7 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                       }
                     },
                     child: isSubmitting 
-                      ? const CircularProgressIndicator(color: Colors.white)
+                      ? const AppSpinner(size: 20, color: Colors.white)
                       : const Text('Enviar Invitación', style: TextStyle(fontWeight: FontWeight.bold)),
                   ),
                 )
@@ -142,16 +143,16 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
+      // backgroundColor eliminado para respetar scaffoldBackgroundColor del tema
       appBar: AppBar(title: const Text('Usuarios y Empleados')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showInviteModal,
-        backgroundColor: AppTheme.primary,
+        backgroundColor: context.brand,
         icon: const Icon(Icons.person_add),
         label: const Text('Nuevo'),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const AppLoader()
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _usuarios.length,
@@ -164,15 +165,15 @@ class _UsuariosScreenState extends State<UsuariosScreen> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: ListTile(
                     leading: CircleAvatar(
-                      backgroundColor: isInvite ? Colors.orange.shade100 : AppTheme.primary.withOpacity(0.1),
-                      child: Icon(isInvite ? Icons.schedule : Icons.person, color: isInvite ? Colors.orange : AppTheme.primary),
+                      backgroundColor: isInvite ? Colors.orange.shade100 : AppTheme.primary.withValues(alpha: 0.1),
+                      child: Icon(isInvite ? Icons.schedule : Icons.person, color: isInvite ? Colors.orange : context.brand),
                     ),
                     title: Text(u['nombre'] ?? 'Sin nombre', style: const TextStyle(fontWeight: FontWeight.bold)),
                     subtitle: Text(u['email'] ?? ''),
                     trailing: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade200,
+                        color: context.textMuted.withValues(alpha: 0.15),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(

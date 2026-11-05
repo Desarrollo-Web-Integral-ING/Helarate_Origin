@@ -15,6 +15,9 @@ class Insumo {
   final String categoria;
   final String? sabor;
   final String? tamano;
+  final String? codigoBarras;
+  final String? sku;
+  final String? descripcion;
   final String? userId;
   final String? tenantId;
   final DateTime updatedAt;
@@ -32,6 +35,9 @@ class Insumo {
     required this.categoria,
     this.sabor,
     this.tamano,
+    this.codigoBarras,
+    this.sku,
+    this.descripcion,
     this.userId,
     this.tenantId,
     required this.updatedAt,
@@ -50,6 +56,9 @@ class Insumo {
     String? categoria,
     String? sabor,
     String? tamano,
+    String? codigoBarras,
+    String? sku,
+    String? descripcion,
     String? userId,
     String? tenantId,
     DateTime? updatedAt,
@@ -67,6 +76,9 @@ class Insumo {
       categoria: categoria ?? this.categoria,
       sabor: sabor ?? this.sabor,
       tamano: tamano ?? this.tamano,
+      codigoBarras: codigoBarras ?? this.codigoBarras,
+      sku: sku ?? this.sku,
+      descripcion: descripcion ?? this.descripcion,
       userId: userId ?? this.userId,
       tenantId: tenantId ?? this.tenantId,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -88,6 +100,9 @@ class Insumo {
         'categoria': categoria,
         'sabor': sabor,
         'tamano': tamano,
+        'codigo_barras': codigoBarras,
+        'sku': sku,
+        'descripcion': descripcion,
         'user_id': userId,
         'tenant_id': tenantId,
         'updated_at': updatedAt.toIso8601String(),
@@ -112,6 +127,9 @@ class Insumo {
       categoria: json['categoria'] as String? ?? 'General',
       sabor: json['sabor'] as String?,
       tamano: json['tamano'] as String?,
+      codigoBarras: json['codigo_barras'] as String?,
+      sku: json['sku'] as String?,
+      descripcion: json['descripcion'] as String?,
       userId: json['user_id'] as String?,
       tenantId: json['tenant_id'] as String?,
       updatedAt: DateTime.parse(json['updated_at'] as String),

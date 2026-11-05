@@ -1,4 +1,5 @@
 import 'package:get_it/get_it.dart';
+import '../hardware/hardware_service.dart';
 import '../../domain/repositories/insumo_repository.dart';
 import '../../domain/repositories/venta_repository.dart';
 import '../../domain/repositories/gasto_repository.dart';
@@ -15,4 +16,5 @@ void setupServiceLocator() {
   getIt.registerLazySingleton<VentaRepository>(() => SupabaseVentaRepository());
   getIt.registerLazySingleton<GastoRepository>(() => SupabaseGastoRepository());
   getIt.registerLazySingleton<AuthRepository>(() => SupabaseAuthRepository());
+  getIt.registerLazySingleton<HardwareService>(() => HardwareService());
 }

@@ -4,6 +4,8 @@ class UsuarioPerfil {
   final String rol; // 'dueño' o 'empleado'
   final String email;
   final String? tenantId;
+  final String avatarStyle; // 'notionists', 'bottts', 'lorelei', 'adventurer', 'avataaars'
+  final String? avatarSeed;
   final DateTime createdAt;
   final DateTime? aceptadoAvisoAt;
 
@@ -13,6 +15,8 @@ class UsuarioPerfil {
     required this.rol,
     this.email = '',
     this.tenantId,
+    this.avatarStyle = 'notionists',
+    this.avatarSeed,
     required this.createdAt,
     this.aceptadoAvisoAt,
   });
@@ -20,11 +24,22 @@ class UsuarioPerfil {
   bool get isOwner => rol == 'dueño';
   bool get isEmployee => rol == 'empleado';
 
+  String get avatarUrl {
+    final seed = (avatarSeed != null && avatarSeed!.trim().isNotEmpty)
+        ? avatarSeed!.trim()
+        : (nombre.isNotEmpty ? nombre : id);
+    final encoded = Uri.encodeComponent(seed);
+    return 'https://api.dicebear.com/7.x/$avatarStyle/png?seed=$encoded&backgroundColor=e2e8f0,cbd5e1,bbf7d0,bfdbfe';
+  }
+
   UsuarioPerfil copyWith({
     String? nombre,
     String? rol,
     String? email,
     String? tenantId,
+    String? avatarStyle,
+    String? avatarSeed,
+    DateTime? aceptadoAvisoAt,
   }) {
     return UsuarioPerfil(
       id: id,
@@ -32,8 +47,10 @@ class UsuarioPerfil {
       rol: rol ?? this.rol,
       email: email ?? this.email,
       tenantId: tenantId ?? this.tenantId,
+      avatarStyle: avatarStyle ?? this.avatarStyle,
+      avatarSeed: avatarSeed ?? this.avatarSeed,
       createdAt: createdAt,
-      aceptadoAvisoAt: aceptadoAvisoAt,
+      aceptadoAvisoAt: aceptadoAvisoAt ?? this.aceptadoAvisoAt,
     );
   }
 
@@ -43,6 +60,8 @@ class UsuarioPerfil {
         'rol': rol,
         'email': email,
         'tenant_id': tenantId,
+        'avatar_style': avatarStyle,
+        'avatar_seed': avatarSeed,
         'created_at': createdAt.toIso8601String(),
         'aceptado_aviso_at': aceptadoAvisoAt?.toIso8601String(),
       };
@@ -54,6 +73,8 @@ class UsuarioPerfil {
       rol: json['rol'] as String? ?? 'empleado',
       email: json['email'] as String? ?? '',
       tenantId: json['tenant_id'] as String?,
+      avatarStyle: json['avatar_style'] as String? ?? 'notionists',
+      avatarSeed: json['avatar_seed'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
       aceptadoAvisoAt: json['aceptado_aviso_at'] != null 
           ? DateTime.parse(json['aceptado_aviso_at'] as String) 

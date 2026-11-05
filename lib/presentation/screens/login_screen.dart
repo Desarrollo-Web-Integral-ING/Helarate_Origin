@@ -1,4 +1,6 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_theme.dart';
@@ -21,28 +23,6 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
-  bool _acceptPrivacyPolicy = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadPrivacyStatus();
-  }
-
-  Future<void> _loadPrivacyStatus() async {
-    final prefs = await SharedPreferences.getInstance();
-    setState(() {
-      _acceptPrivacyPolicy = prefs.getBool('privacy_policy_accepted') ?? false;
-    });
-  }
-
-  Future<void> _savePrivacyStatus(bool accepted) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('privacy_policy_accepted', accepted);
-    setState(() {
-      _acceptPrivacyPolicy = accepted;
-    });
-  }
 
   @override
   void dispose() {
@@ -53,103 +33,25 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _submitForm() {
     if (_formKey.currentState!.validate()) {
-      if (!_acceptPrivacyPolicy) {
-        _showPrivacyPolicyModal();
-      } else {
-        context.read<AuthBloc>().add(
-              SignInRequested(
-                email: _emailController.text.trim(),
-                password: _passwordController.text,
-              ),
-            );
-      }
+      context.read<AuthBloc>().add(
+            SignInRequested(
+              email: _emailController.text.trim(),
+              password: _passwordController.text,
+            ),
+          );
     } else {
       AppToast.showWarning(context, 'Ingresa correo y contraseña válidos');
     }
   }
 
-  void _showPrivacyPolicyModal() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: const Row(
-          children: [
-            Icon(Icons.privacy_tip_outlined, color: AppTheme.primary),
-            SizedBox(width: 10),
-            Text(
-              'Aviso de Privacidad',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-          ],
-        ),
-        content: const SizedBox(
-          width: 500,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'AVISO DE PRIVACIDAD SIMPLIFICADO',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  'Helarate, en cumplimiento con la Ley General de Protección de Datos Personales en Posesión de Sujetos Obligados (LGPDPPSO), es responsable del tratamiento de sus datos personales. Los datos personales que recabamos (correo electrónico, nombre completo y rol del sistema) serán utilizados única y exclusivamente para los fines de autenticación, control de accesos basados en roles (RBAC) y auditoría en el sistema de ventas e inventarios de la nevería.',
-                  style: TextStyle(fontSize: 11, height: 1.4, color: AppTheme.textSecondary),
-                ),
-                Divider(height: 24),
-                Text(
-                  'AVISO DE PRIVACIDAD INTEGRAL',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppTheme.textPrimary),
-                ),
-                SizedBox(height: 8),
-                Text(
-                  '1. Responsable del Tratamiento:\nHelarate opera como un sistema de control de inventarios de neverías tradicionales de carácter institucional y educativo.\n\n'
-                  '2. Datos Personales Recabados:\n- Correo electrónico.\n- Nombre completo.\n- Rol asignado (dueño/empleado).\n\n'
-                  '3. Finalidad del Tratamiento:\nSus datos son necesarios para:\n- Registrar y controlar el acceso de usuarios.\n- Asignar roles operativos dentro del inventario.\n- Auditar las operaciones de ventas y modificaciones de stock (trazabilidad).\n\n'
-                  '4. Transferencias de Datos:\nSe informa que no se realizan transferencias de sus datos personales a terceras personas ni dependencias externas.\n\n'
-                  '5. Ejercicio de Derechos ARCO:\nUsted tiene derecho a conocer qué datos tenemos de usted, corregirlos en caso de ser inexactos, solicitar su cancelación o eliminación, y oponerse a su uso. Puede ejercer sus derechos ARCO directamente mediante las opciones correspondientes configuradas en su panel de perfil de usuario dentro de la aplicación, o bien enviando un correo al administrador de la institución.',
-                  style: TextStyle(fontSize: 11, height: 1.4, color: AppTheme.textSecondary),
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              AppToast.showError(context, 'Debes aceptar el Aviso de Privacidad para poder utilizar el sistema.');
-            },
-            child: const Text('Rechazar', style: TextStyle(color: Colors.red)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              await _savePrivacyStatus(true);
-              _submitForm();
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primary,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-            child: const Text('Aceptar y continuar'),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final isLargeScreen = size.width >= 800;
+    final isLargeScreen = size.width >= 900;
+    final isDarkMode = context.watch<AuthBloc>().state.isDarkMode;
 
     return Scaffold(
+      backgroundColor: isDarkMode ? const Color(0xFF090D16) : const Color(0xFFF1F5F9),
       body: BlocListener<AuthBloc, AuthState>(
         listener: (context, state) {
           if (state is AuthFailure) {
@@ -160,140 +62,336 @@ class _LoginScreenState extends State<LoginScreen> {
             );
           }
         },
-        child: isLargeScreen ? _buildWebLayout(size) : _buildMobileLayout(size),
+        child: Stack(
+          children: [
+            isLargeScreen ? _buildHeroDesktop(size, isDarkMode) : _buildHeroMobile(size, isDarkMode),
+
+            // Botón Flotante para Alternar Modo Claro / Modo Oscuro en Login
+            Positioned(
+              top: 24,
+              right: 24,
+              child: SafeArea(
+                child: GestureDetector(
+                  onTap: () => context.read<AuthBloc>().add(ToggleThemeRequested()),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 250),
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? const Color(0xFF1E293B).withValues(alpha: 0.9)
+                          : Colors.white,
+                      borderRadius: BorderRadius.circular(30),
+                      border: Border.all(
+                        color: isDarkMode ? Colors.white24 : const Color(0xFFCBD5E1),
+                        width: 1,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: isDarkMode ? 0.3 : 0.08),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          isDarkMode ? Icons.dark_mode_rounded : Icons.light_mode_rounded,
+                          color: isDarkMode ? Colors.amber : Colors.orange,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          isDarkMode ? 'Oscuro' : 'Claro',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: isDarkMode ? Colors.white : AppTheme.textPrimary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
-  Widget _buildWebLayout(Size size) {
-    return Row(
-      children: [
-        // Columna izquierda: Decorativa/Branding
-        Expanded(
-          flex: 6,
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                colors: [Color(0xFF6C63FF), Color(0xFFFF6584)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(28),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(30),
-                  ),
-                  child: const Text(
-                    '🍦',
-                    style: TextStyle(fontSize: 80),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'Helarate',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 48,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'Control de inventario y ventas para neverías',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w300,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Columna derecha: Formulario
-        Expanded(
-          flex: 5,
-          child: Container(
-            color: AppTheme.background,
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(48.0),
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 400),
-                  child: Card(
-                    elevation: 10,
-                    shadowColor: Colors.black.withValues(alpha: 0.05),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: _buildForm(),
-                    ),
-                  ),
+  Widget _buildHeroDesktop(Size size, bool isDark) {
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
+      ),
+      child: Stack(
+        children: [
+          // Background Glow Orbs
+          Positioned(
+            top: -100,
+            left: -100,
+            child: Container(
+              width: 500,
+              height: 500,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF2563EB).withValues(alpha: isDark ? 0.35 : 0.15),
+                    Colors.transparent,
+                  ],
                 ),
               ),
             ),
           ),
-        ),
-      ],
+          Positioned(
+            bottom: -150,
+            right: 200,
+            child: Container(
+              width: 600,
+              height: 600,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    const Color(0xFF10B981).withValues(alpha: isDark ? 0.20 : 0.10),
+                    Colors.transparent,
+                  ],
+                ),
+              ),
+            ),
+          ),
+
+          // Main Layout Content
+          Row(
+            children: [
+              // Columna Izquierda: Branding HeroUI
+              Expanded(
+                flex: 6,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 64.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.blue.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(30),
+                          border: Border.all(
+                            color: isDark ? Colors.white.withValues(alpha: 0.15) : Colors.blue.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.bolt_rounded, color: Color(0xFF2563EB), size: 16),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Punto de Venta & Inventario Inteligente',
+                              style: TextStyle(
+                                color: isDark ? Colors.white : const Color(0xFF1E3A8A),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                letterSpacing: 0.3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+
+                      Container(
+                        width: 76,
+                        height: 76,
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(22),
+                          boxShadow: [
+                            BoxShadow(
+                              color: const Color(0xFF2563EB).withValues(alpha: 0.5),
+                              blurRadius: 28,
+                              offset: const Offset(0, 10),
+                            ),
+                          ],
+                        ),
+                        child: const Center(
+                          child: Icon(Icons.storefront_rounded, size: 40, color: Colors.white),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      Text(
+                        'Gestiona tu negocio,\nsin complicaciones.',
+                        style: TextStyle(
+                          fontSize: 46,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -1.0,
+                          height: 1.15,
+                          color: isDark ? Colors.white : const Color(0xFF0F172A),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Inventario en tiempo real, registro de caja rápido y personalización completa de marca para tu empresa.',
+                        style: TextStyle(
+                          color: isDark ? Colors.white70 : const Color(0xFF475569),
+                          fontSize: 16,
+                          height: 1.5,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      const SizedBox(height: 32),
+
+                      Row(
+                        children: [
+                          _buildAvatarStack(isDark),
+                          const SizedBox(width: 14),
+                          Text(
+                            '+50 negocios gestionando sus ventas hoy',
+                            style: TextStyle(
+                              color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Columna Derecha: Tarjeta Formulario Glassmorphism
+              Expanded(
+                flex: 5,
+                child: Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(40.0),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(28),
+                        child: BackdropFilter(
+                          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+                          child: Container(
+                            padding: const EdgeInsets.all(36),
+                            decoration: BoxDecoration(
+                              color: isDark
+                                  ? const Color(0xFF1E293B).withValues(alpha: 0.85)
+                                  : Colors.white.withValues(alpha: 0.90),
+                              borderRadius: BorderRadius.circular(28),
+                              border: Border.all(
+                                color: isDark
+                                    ? Colors.white.withValues(alpha: 0.12)
+                                    : const Color(0xFFE2E8F0),
+                                width: 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: isDark ? 0.4 : 0.08),
+                                  blurRadius: 36,
+                                  offset: const Offset(0, 16),
+                                ),
+                              ],
+                            ),
+                            child: _buildForm(isDark: isDark),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
-  Widget _buildMobileLayout(Size size) {
+  Widget _buildHeroMobile(Size size, bool isDark) {
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF6C63FF), Color(0xFFFF6584)],
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-        ),
+      width: double.infinity,
+      height: double.infinity,
+      decoration: BoxDecoration(
+        color: isDark ? const Color(0xFF090D16) : const Color(0xFFF8FAFC),
       ),
       child: SafeArea(
         child: Center(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text(
-                  '🍦',
-                  style: TextStyle(fontSize: 64),
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'Helarate',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 36,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
+                Container(
+                  width: 68,
+                  height: 68,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(20),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2563EB).withValues(alpha: 0.5),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Icon(Icons.storefront_rounded, size: 36, color: Colors.white),
                   ),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 20),
                 Text(
-                  'Control de inventario y ventas',
+                  'Punto de Venta Pro',
                   style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontSize: 15,
+                    color: isDark ? Colors.white : const Color(0xFF0F172A),
+                    fontSize: 28,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: -0.5,
                   ),
                 ),
-                const SizedBox(height: 32),
-                Card(
-                  elevation: 10,
-                  shadowColor: Colors.black.withValues(alpha: 0.1),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(24),
+                const SizedBox(height: 6),
+                Text(
+                  'Inicia sesión para acceder a tu negocio',
+                  style: TextStyle(
+                    color: isDark ? Colors.white70 : const Color(0xFF64748B),
+                    fontSize: 14,
                   ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(24.0),
-                    child: _buildForm(),
+                ),
+                const SizedBox(height: 28),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(24),
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? const Color(0xFF1E293B).withValues(alpha: 0.88)
+                            : Colors.white,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(
+                          color: isDark ? Colors.white.withValues(alpha: 0.12) : const Color(0xFFE2E8F0),
+                        ),
+                      ),
+                      child: _buildForm(isDark: isDark),
+                    ),
                   ),
                 ),
               ],
@@ -304,37 +402,96 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
-  Widget _buildForm() {
+  Widget _buildAvatarStack(bool isDark) {
+    final urls = [
+      'https://api.dicebear.com/7.x/notionists/png?seed=Alex&backgroundColor=bfdbfe',
+      'https://api.dicebear.com/7.x/notionists/png?seed=Sarah&backgroundColor=bbf7d0',
+      'https://api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=fef08a',
+      'https://api.dicebear.com/7.x/notionists/png?seed=Maria&backgroundColor=fbcfe8',
+    ];
+
+    return SizedBox(
+      height: 36,
+      width: 110,
+      child: Stack(
+        children: List.generate(urls.length, (idx) {
+          return Positioned(
+            left: idx * 24.0,
+            child: Container(
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isDark ? const Color(0xFF090D16) : Colors.white,
+                  width: 2,
+                ),
+              ),
+              child: ClipOval(
+                child: Image.network(urls[idx], width: 32, height: 32, fit: BoxFit.cover),
+              ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildForm({required bool isDark}) {
+    final titleColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final subColor = isDark ? Colors.white.withValues(alpha: 0.7) : const Color(0xFF64748B);
+    final inputTextColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final inputBgColor = isDark ? const Color(0xFF0F172A) : const Color(0xFFF1F5F9);
+    final inputBorderColor = isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);
+
     return Form(
       key: _formKey,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
-            '¡Bienvenido!',
+          Text(
+            '¡Bienvenido de nuevo!',
             style: TextStyle(
-              color: AppTheme.textPrimary,
+              color: titleColor,
               fontSize: 22,
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
             ),
           ),
-          const SizedBox(height: 8),
-          const Text(
-            'Inicia sesión con tus credenciales',
+          const SizedBox(height: 6),
+          Text(
+            'Ingresa tus credenciales para ingresar a caja',
             style: TextStyle(
-              color: AppTheme.textSecondary,
-              fontSize: 14,
+              color: subColor,
+              fontSize: 13,
             ),
           ),
           const SizedBox(height: 24),
+
+          // Input de Correo con visibilidad de texto perfecta
           TextFormField(
             controller: _emailController,
             keyboardType: TextInputType.emailAddress,
             textInputAction: TextInputAction.next,
-            decoration: const InputDecoration(
+            style: TextStyle(
+              color: inputTextColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: isDark ? const Color(0xFF38BDF8) : AppTheme.primary,
+            decoration: InputDecoration(
+              filled: true,
+              fillColor: inputBgColor,
               labelText: 'Correo Electrónico',
-              prefixIcon: Icon(Icons.email_outlined, color: AppTheme.primary),
+              labelStyle: TextStyle(color: subColor),
+              prefixIcon: Icon(Icons.alternate_email_rounded, color: isDark ? const Color(0xFF38BDF8) : AppTheme.primary),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: inputBorderColor, width: 1.2),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: isDark ? const Color(0xFF38BDF8) : AppTheme.primary, width: 2),
+              ),
             ),
             validator: (value) {
               if (value == null || value.isEmpty) {
@@ -348,18 +505,37 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
           const SizedBox(height: 16),
+
+          // Input de Contraseña con visibilidad de texto perfecta
           TextFormField(
             controller: _passwordController,
             obscureText: _obscurePassword,
             textInputAction: TextInputAction.done,
             onFieldSubmitted: (_) => _submitForm(),
+            style: TextStyle(
+              color: inputTextColor,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: isDark ? const Color(0xFF38BDF8) : AppTheme.primary,
             decoration: InputDecoration(
+              filled: true,
+              fillColor: inputBgColor,
               labelText: 'Contraseña',
-              prefixIcon: const Icon(Icons.lock_outlined, color: AppTheme.primary),
+              labelStyle: TextStyle(color: subColor),
+              prefixIcon: Icon(Icons.lock_outline_rounded, color: isDark ? const Color(0xFF38BDF8) : AppTheme.primary),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: inputBorderColor, width: 1.2),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(16),
+                borderSide: BorderSide(color: isDark ? const Color(0xFF38BDF8) : AppTheme.primary, width: 2),
+              ),
               suffixIcon: IconButton(
                 icon: Icon(
-                  _obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  color: AppTheme.textSecondary,
+                  _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                  color: subColor,
                 ),
                 onPressed: () {
                   setState(() {
@@ -379,52 +555,78 @@ class _LoginScreenState extends State<LoginScreen> {
             },
           ),
           const SizedBox(height: 24),
-              BlocBuilder<AuthBloc, AuthState>(
-                builder: (context, state) {
-                  final isLoading = state is AuthLoading;
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      ElevatedButton(
-                        onPressed: isLoading ? null : _submitForm,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                        ),
-                        child: isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                                ),
-                              )
-                            : const Text(
-                                'Iniciar Sesión',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+
+          // Botón Iniciar Sesión
+          BlocBuilder<AuthBloc, AuthState>(
+            builder: (context, state) {
+              final isLoading = state is AuthLoading;
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(14),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF2563EB), Color(0xFF38BDF8)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
                       ),
-                      const SizedBox(height: 16),
-                      TextButton(
-                        onPressed: () {
-                          // Navigate to RegistroScreen
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(builder: (_) => const RegistroScreen()),
-                          );
-                        },
-                        child: const Text('¿Ya te dieron de alta? Activa tu cuenta aquí'),
-                      )
-                    ],
-                  );
-                },
-              ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF2563EB).withValues(alpha: 0.4),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: ElevatedButton(
+                      onPressed: isLoading ? null : _submitForm,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.transparent,
+                        shadowColor: Colors.transparent,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      child: isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: const AppSpinner(size: 20, color: Colors.white),
+                            )
+                          : const Text(
+                              'Iniciar Sesión',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.2,
+                              ),
+                            ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RegistroScreen()),
+                      );
+                    },
+                    child: Text(
+                      '¿Tienes una invitación de empresa? Activa tu cuenta aquí',
+                      style: TextStyle(
+                        color: isDark ? const Color(0xFF38BDF8) : AppTheme.primary,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                ],
+              );
+            },
+          ),
         ],
       ),
     );

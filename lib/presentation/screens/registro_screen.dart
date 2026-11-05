@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/widgets/app_loader.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_toast.dart';
@@ -109,7 +110,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
                           ),
                           onPressed: _isLoading ? null : _submit,
                           child: _isLoading 
-                            ? const CircularProgressIndicator(color: Colors.white) 
+                            ? const AppSpinner(size: 20, color: Colors.white) 
                             : const Text('Activar Cuenta', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                         ),
                       )
