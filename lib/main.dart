@@ -34,8 +34,17 @@ import 'core/utils/money.dart';
 import 'core/hardware/hardware_service.dart';
 import 'core/widgets/app_loader.dart';
 
+import 'package:flutter/foundation.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  if (kIsWeb) {
+    try {
+      // Usar BarcodeDetector nativo del navegador en Web para no depender de descargas externas de CDN
+      MobileScannerPlatform.instance.setWebBarcodeReader(WebBarcodeReader.barcodeDetector);
+    } catch (_) {}
+  }
 
   // Detección automática de entorno: DEV (Local/Docker) vs PROD (Nube)
   try {
