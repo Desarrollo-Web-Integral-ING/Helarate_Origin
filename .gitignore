@@ -33,7 +33,6 @@ macos/Flutter/GeneratedPluginRegistrant.swift
 macos/Flutter/ephemeral/
 
 # Web
-lib/generated_plugin_registrant.dart
 
 # IDE
 .idea/

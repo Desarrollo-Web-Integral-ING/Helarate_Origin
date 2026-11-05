@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/camera_access_api.dart';
 
 /// Escáner con la cámara del dispositivo (códigos de barras y QR).
 ///
@@ -18,7 +19,17 @@ class BarcodeScannerScreen extends StatefulWidget {
   State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
 }
 
-enum _CamState { checking, ready, denied, permanentlyDenied, insecure }
+enum _CamState {
+  checking,
+  ready,
+  denied,
+  permanentlyDenied,
+  insecure,
+  browserDenied,
+  noCamera,
+  inUse,
+  failed,
+}
 
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     with SingleTickerProviderStateMixin {
@@ -27,6 +38,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   late final Animation<double> _laserPosition;
   bool _hasScanned = false;
   _CamState _camState = _CamState.checking;
+  String? _detail; // texto técnico del último fallo (para diagnóstico)
 
   bool get _isMobileOs =>
       defaultTargetPlatform == TargetPlatform.android ||
@@ -35,8 +47,9 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   @override
   void initState() {
     super.initState();
+    // El controlador se inicia solo al montarse MobileScanner, y ese widget
+    // únicamente se construye cuando el permiso ya está concedido.
     _controller = MobileScannerController(
-      autoStart: false, // se inicia solo cuando el permiso está resuelto
       detectionSpeed: DetectionSpeed.noDuplicates,
       // En laptops/PC no existe cámara trasera; solo se pide en móviles.
       facing: _isMobileOs ? CameraFacing.back : CameraFacing.front,
@@ -56,17 +69,27 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   }
 
   Future<void> _prepareCamera() async {
-    setState(() => _camState = _CamState.checking);
+    setState(() {
+      _camState = _CamState.checking;
+      _detail = null;
+    });
 
     if (kIsWeb) {
-      // El navegador solo permite la cámara en HTTPS o localhost.
-      final host = Uri.base.host;
-      final secure = Uri.base.scheme == 'https' ||
-          host == 'localhost' ||
-          host == '127.0.0.1' ||
-          host == '[::1]';
-      if (!secure) {
-        setState(() => _camState = _CamState.insecure);
+      // Pedimos la cámara nosotros mismos: así el navegador muestra su aviso
+      // de permiso y, si falla, sabemos exactamente por qué.
+      final r = await requestBrowserCamera();
+      if (!mounted) return;
+      if (!r.ok) {
+        setState(() {
+          _detail = r.detail;
+          _camState = switch (r.access) {
+            CameraAccess.denied => _CamState.browserDenied,
+            CameraAccess.noDevice => _CamState.noCamera,
+            CameraAccess.inUse => _CamState.inUse,
+            CameraAccess.insecure => _CamState.insecure,
+            _ => _CamState.failed,
+          };
+        });
         return;
       }
     } else if (_isMobileOs) {
@@ -84,12 +107,6 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
 
     if (!mounted) return;
     setState(() => _camState = _CamState.ready);
-    try {
-      // En web, aquí es donde el navegador muestra su aviso de permiso.
-      await _controller.start();
-    } catch (_) {
-      // El error se muestra mediante el errorBuilder de MobileScanner.
-    }
   }
 
   @override
@@ -139,6 +156,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     String? primaryLabel,
     IconData primaryIcon = Icons.refresh_rounded,
     VoidCallback? onPrimary,
+    String? detail,
   }) {
     return Container(
       color: Colors.black,
@@ -167,6 +185,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                   textAlign: TextAlign.center,
                   style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.45),
                 ),
+                if (detail != null && detail.isNotEmpty) ...[
+                  const SizedBox(height: 14),
+                  SelectableText(
+                    'Detalle técnico: $detail',
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white38, fontSize: 11.5),
+                  ),
+                ],
                 const SizedBox(height: 28),
                 Wrap(
                   spacing: 12,
@@ -290,6 +316,65 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             title: 'La cámara requiere HTTPS',
             message: 'Los navegadores solo permiten la cámara en páginas seguras (https://) '
                 'o en localhost. Abre la app con HTTPS, o usa un lector USB/Bluetooth.',
+            detail: _detail,
+          ),
+        );
+      case _CamState.browserDenied:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.no_photography_outlined,
+            title: 'El navegador no dio acceso a la cámara',
+            message: 'Si no te apareció ningún aviso, el permiso está bloqueado para este sitio:\n\n'
+                '1. Pulsa el icono de candado (o de cámara tachada) junto a la dirección.\n'
+                '2. Cambia "Cámara" a "Permitir".\n'
+                '3. Pulsa Reintentar.\n\n'
+                'Si abriste la app dentro de un navegador integrado de un editor (vista previa), '
+                'esos no muestran permisos: ábrela en Chrome o Edge. '
+                'También revisa Windows: Configuración > Privacidad > Cámara > permitir apps de escritorio.',
+            primaryLabel: 'Reintentar',
+            onPrimary: _prepareCamera,
+            detail: _detail,
+          ),
+        );
+      case _CamState.noCamera:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.videocam_off_outlined,
+            title: 'No se detecta ninguna cámara',
+            message: 'Este equipo no tiene una cámara conectada o está deshabilitada, '
+                'por eso el navegador ni siquiera muestra el aviso de permiso. '
+                'Conecta una cámara web, abre la app desde un celular, '
+                'o usa un lector USB/Bluetooth o escribe el código.',
+            primaryLabel: 'Reintentar',
+            onPrimary: _prepareCamera,
+            detail: _detail,
+          ),
+        );
+      case _CamState.inUse:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.videocam_outlined,
+            title: 'La cámara está en uso',
+            message: 'Otra aplicación o pestaña (Zoom, Teams, otra pestaña del navegador) '
+                'está usando la cámara. Ciérrala y pulsa Reintentar.',
+            primaryLabel: 'Reintentar',
+            onPrimary: _prepareCamera,
+            detail: _detail,
+          ),
+        );
+      case _CamState.failed:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.camera_alt_outlined,
+            title: 'No se pudo abrir la cámara',
+            message: 'Ocurrió un error inesperado al pedir la cámara al navegador.',
+            primaryLabel: 'Reintentar',
+            onPrimary: _prepareCamera,
+            detail: _detail,
           ),
         );
       case _CamState.ready:
