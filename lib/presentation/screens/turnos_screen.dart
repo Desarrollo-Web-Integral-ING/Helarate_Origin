@@ -30,7 +30,17 @@ const String _kTodos = '__todos__';
 // Utilidades de formato
 // ======================================================================
 
-String _hora(DateTime? d) => d == null ? '--:--' : DateFormat('HH:mm').format(d);
+String _hora(DateTime? d) => d == null ? '--:--' : DateFormat('hh:mm a', 'es_MX').format(d);
+
+String _hhmmA12h(String? hhmm) {
+  if (hhmm == null || hhmm.isEmpty) return '--:--';
+  final partes = hhmm.split(':');
+  if (partes.length < 2) return hhmm;
+  final hora = int.tryParse(partes[0]) ?? 0;
+  final minuto = int.tryParse(partes[1]) ?? 0;
+  final dt = DateTime(2000, 1, 1, hora, minuto);
+  return DateFormat('hh:mm a', 'es_MX').format(dt);
+}
 
 String _duracion(Duration d) {
   final h = d.inHours;
@@ -422,7 +432,7 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
           ),
           const SizedBox(height: 6),
           Text(
-            DateFormat('HH:mm:ss').format(_ahora),
+            DateFormat('hh:mm:ss a', 'es_MX').format(_ahora),
             style: const TextStyle(
               color: Colors.white,
               fontSize: 44,
@@ -451,7 +461,7 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
           Text(
             h == null
                 ? 'Hoy no tienes horario asignado'
-                : 'Horario de hoy: ${h.horaEntrada} – ${h.horaSalida} · comida ${h.comidaMinutos} min',
+                : 'Horario de hoy: ${_hhmmA12h(h.horaEntrada)} – ${_hhmmA12h(h.horaSalida)} · comida ${h.comidaMinutos} min',
             style: const TextStyle(color: Colors.white70, fontSize: 12.5),
           ),
         ],
@@ -866,7 +876,7 @@ class _EquipoTabState extends State<_EquipoTab> {
       estadoTxt = aus.tipo.etiqueta;
       estadoColor = aus.tipo.color;
     } else if (prog != null) {
-      estadoTxt = 'Sin entrada · esperado ${prog.horaEntrada}';
+      estadoTxt = 'Sin entrada · esperado ${_hhmmA12h(prog.horaEntrada)}';
       estadoColor = Colors.red;
     } else {
       estadoTxt = 'Sin horario hoy';
@@ -1730,12 +1740,12 @@ class _HorariosTabState extends State<_HorariosTab> {
                     children: [
                       TextButton(
                         onPressed: () => _elegirHora(h.diaSemana, true),
-                        child: Text(h.horaEntrada, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        child: Text(_hhmmA12h(h.horaEntrada), style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
                       const Text('→'),
                       TextButton(
                         onPressed: () => _elegirHora(h.diaSemana, false),
-                        child: Text(h.horaSalida, style: const TextStyle(fontWeight: FontWeight.w800)),
+                        child: Text(_hhmmA12h(h.horaSalida), style: const TextStyle(fontWeight: FontWeight.w800)),
                       ),
                       const Icon(Icons.restaurant_rounded, size: 16),
                       DropdownButton<int>(

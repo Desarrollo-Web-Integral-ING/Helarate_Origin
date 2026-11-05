@@ -52,6 +52,17 @@ DateTime _dia(DateTime d) => DateTime(d.year, d.month, d.day);
 
 String _fmtFecha(DateTime d) => DateFormat('d MMM', 'es_MX').format(d);
 
+/// Convierte 'HH:mm' (ej: '09:00', '18:30') a formato 12 horas 'h:mm a' ('9:00 a.m.', '6:30 p.m.').
+String _hhmmA12h(String? hhmm) {
+  if (hhmm == null || hhmm.isEmpty) return '--:--';
+  final partes = hhmm.split(':');
+  if (partes.length < 2) return hhmm;
+  final hora = int.tryParse(partes[0]) ?? 0;
+  final minuto = int.tryParse(partes[1]) ?? 0;
+  final dt = DateTime(2000, 1, 1, hora, minuto);
+  return DateFormat('h:mm a', 'es_MX').format(dt);
+}
+
 String _rango(Ausencia a) => a.fechaInicio == a.fechaFin
     ? _fmtFecha(a.fechaInicio)
     : '${_fmtFecha(a.fechaInicio)} – ${_fmtFecha(a.fechaFin)}';
@@ -715,7 +726,7 @@ class _CalendarioTurnosTabState extends State<CalendarioTurnosTab> {
               _filaPersona(
                 context,
                 e,
-                '${_horarioDe(e.id, dia)!.horaEntrada} – ${_horarioDe(e.id, dia)!.horaSalida}'
+                '${_hhmmA12h(_horarioDe(e.id, dia)!.horaEntrada)} – ${_hhmmA12h(_horarioDe(e.id, dia)!.horaSalida)}'
                 ' · comida ${_horarioDe(e.id, dia)!.comidaMinutos} min',
               ),
             if (ausentes.isNotEmpty) ...[
@@ -834,27 +845,62 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
     super.dispose();
   }
 
-  Widget _campoFecha(String etiqueta, DateTime fecha, VoidCallback onTap) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(12),
-      child: InputDecorator(
-        decoration: InputDecoration(
-          labelText: etiqueta,
-          prefixIcon: const Icon(Icons.event_rounded, size: 20),
+  Widget _campoFecha(String etiqueta, DateTime fecha, void Function(BuildContext campoCtx) onTap) {
+    // Builder: el contexto del propio campo sirve de ancla para el desplegable.
+    return Builder(
+      builder: (campoCtx) => InkWell(
+        onTap: () => onTap(campoCtx),
+        borderRadius: BorderRadius.circular(12),
+        child: InputDecorator(
+          decoration: InputDecoration(
+            labelText: etiqueta,
+            prefixIcon: const Icon(Icons.event_rounded, size: 20),
+          ),
+          child: Text(DateFormat('d MMM yyyy', 'es_MX').format(fecha), overflow: TextOverflow.ellipsis),
         ),
-        child: Text(DateFormat('d MMM yyyy', 'es_MX').format(fecha), overflow: TextOverflow.ellipsis),
       ),
     );
   }
 
-  Future<void> _elegirFecha({required bool esDesde}) async {
+  /// Calendario compacto que se despliega justo debajo del campo (tipo tooltip),
+  /// en lugar de abrir un diálogo / pantalla completa.
+  Future<void> _elegirFecha({required bool esDesde, required BuildContext campoCtx}) async {
     final actual = esDesde ? _desde : _hasta;
-    final r = await showDatePicker(
+    final primera = esDesde ? DateTime(DateTime.now().year - 1) : _desde;
+    final ultima = DateTime(DateTime.now().year + 2, 12, 31);
+
+    final box = campoCtx.findRenderObject() as RenderBox;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox;
+    final origen = box.localToGlobal(Offset(0, box.size.height + 4), ancestor: overlay);
+    final posicion = RelativeRect.fromLTRB(
+      origen.dx,
+      origen.dy,
+      overlay.size.width - origen.dx - box.size.width,
+      overlay.size.height - origen.dy,
+    );
+
+    final r = await showMenu<DateTime>(
       context: context,
-      initialDate: actual,
-      firstDate: esDesde ? DateTime(DateTime.now().year - 1) : _desde,
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
+      position: posicion,
+      constraints: const BoxConstraints.tightFor(width: 320),
+      items: [
+        PopupMenuItem<DateTime>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: Builder(
+            builder: (menuCtx) => SizedBox(
+              width: 320,
+              height: 340,
+              child: CalendarDatePicker(
+                initialDate: actual.isBefore(primera) ? primera : actual,
+                firstDate: primera,
+                lastDate: ultima,
+                onDateChanged: (d) => Navigator.pop(menuCtx, d),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
     if (r == null) return;
     setState(() {
@@ -870,21 +916,6 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
         _hasta = _dia(r);
       }
     });
-  }
-
-  Future<void> _elegirRango() async {
-    final r = await showDateRangePicker(
-      context: context,
-      firstDate: DateTime(DateTime.now().year - 1),
-      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
-      initialDateRange: DateTimeRange(start: _desde, end: _hasta),
-    );
-    if (r != null) {
-      setState(() {
-        _desde = _dia(r.start);
-        _hasta = _dia(r.end);
-      });
-    }
   }
 
   Future<void> _guardar() async {
@@ -1040,9 +1071,9 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Expanded(child: _campoFecha('Desde', _desde, () => _elegirFecha(esDesde: true))),
+                  Expanded(child: _campoFecha('Desde', _desde, (c) => _elegirFecha(esDesde: true, campoCtx: c))),
                   const SizedBox(width: 10),
-                  Expanded(child: _campoFecha('Hasta', _hasta, () => _elegirFecha(esDesde: false))),
+                  Expanded(child: _campoFecha('Hasta', _hasta, (c) => _elegirFecha(esDesde: false, campoCtx: c))),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1069,11 +1100,6 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
                           : 'Del ${DateFormat('d MMM', 'es_MX').format(_desde)} al ${DateFormat('d MMM yyyy', 'es_MX').format(_hasta)} · $dias días',
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
-                  ),
-                  TextButton.icon(
-                    onPressed: _elegirRango,
-                    icon: const Icon(Icons.date_range_rounded, size: 18),
-                    label: const Text('Calendario'),
                   ),
                 ],
               ),
