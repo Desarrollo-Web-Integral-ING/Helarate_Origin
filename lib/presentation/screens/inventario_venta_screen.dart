@@ -1,3 +1,4 @@
+import '../../core/di/service_locator.dart';
 import '../../domain/models/campo_personalizado.dart';
 import '../../domain/repositories/campo_personalizado_repository.dart';
 import '../widgets/formulario_campos_dinamicos.dart';

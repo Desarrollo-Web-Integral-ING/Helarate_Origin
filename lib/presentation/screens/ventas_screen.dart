@@ -1,5 +1,4 @@
 import '../widgets/barcode_scanner_screen.dart';
-﻿import 'package:image_picker/image_picker.dart';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';

@@ -81,7 +81,7 @@ class _CamposPersonalizadosScreenState extends State<CamposPersonalizadosScreen>
                           color: AppTheme.brandPrimary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        child: const Icon(Icons.playlist_add_rounded, color: AppTheme.brandPrimary),
+                        child: Icon(Icons.playlist_add_rounded, color: AppTheme.brandPrimary),
                       ),
                       const SizedBox(width: 12),
                       Expanded(

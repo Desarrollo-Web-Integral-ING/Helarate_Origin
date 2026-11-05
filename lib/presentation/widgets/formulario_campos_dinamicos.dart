@@ -24,7 +24,7 @@ class FormularioCamposDinamicos extends StatelessWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            const Icon(Icons.tune_rounded, size: 18, color: AppTheme.brandPrimary),
+            Icon(Icons.tune_rounded, size: 18, color: AppTheme.brandPrimary),
             const SizedBox(width: 8),
             Text(
               'Campos Personalizados del Negocio',

@@ -1,3 +1,4 @@
+import '../../core/di/service_locator.dart';
 import '../../domain/models/campo_personalizado.dart';
 import '../../domain/repositories/campo_personalizado_repository.dart';
 import '../widgets/formulario_campos_dinamicos.dart';
@@ -29,6 +30,20 @@ class InventarioProduccionScreen extends StatefulWidget {
 
 class _InventarioProduccionScreenState
     extends State<InventarioProduccionScreen> {
+  List<CampoPersonalizado> _camposPersonalizados = [];
+
+  Future<void> _cargarCamposPersonalizados() async {
+    try {
+      final repo = getIt<CampoPersonalizadoRepository>();
+      final list = await repo.getCampos();
+      if (mounted) {
+        setState(() {
+          _camposPersonalizados = list.where((c) => c.aplicaA == 'todos' || c.aplicaA == 'materia_prima').toList();
+        });
+      }
+    } catch (_) {}
+  }
+
   NumberFormat get _fmt => Money.of(context);
   List<Insumo> _items = [];
   String _busqueda = '';
@@ -504,7 +519,7 @@ class _InventarioProduccionScreenState
     PickedImageData? selectedImage;
     bool isSaving = false;
     final formKey = GlobalKey<FormState>();
-    final Map<String, dynamic> atributosMap = Map<String, dynamic>.from(insumo?.atributos ?? {});
+    final Map<String, dynamic> atributosMap = Map<String, dynamic>.from(producto?.atributos ?? {});
 
     showModalBottomSheet(
       context: context,
@@ -728,6 +743,7 @@ class _InventarioProduccionScreenState
                                 userId: producto?.userId,
                                 updatedAt: DateTime.now(),
                                 imagenPath: finalImagenPath,
+                                atributos: atributosMap,
                               );
 
                               if (isEdit) {

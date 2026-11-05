@@ -4,7 +4,8 @@ import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Paleta moderna por defecto (Azul Eléctrico / Slate Profesional)
-  static const Color primary = Color(0xFF2563EB); // Royal Blue moderno
+  static const Color primary = Color(0xFF2563EB);
+  static const Color brandPrimary = primary; // Royal Blue moderno
   static const Color secondary = Color(0xFF0EA5E9); // Sky Cyan
   static const Color accent = Color(0xFF10B981); // Emerald
   static const Color background = Color(0xFFF8FAFC); // Slate 50 limpio
