@@ -539,7 +539,6 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     await _cargarCamposPersonalizados();
     final isEdit = producto != null;
     final nombreCtrl = TextEditingController(text: producto?.nombre ?? '');
-    final saborCtrl = TextEditingController(text: producto?.sabor ?? '');
     final codigoCtrl = TextEditingController(text: producto?.codigoBarras ?? '');
     final skuCtrl = TextEditingController(text: producto?.sku ?? '');
     final precioCtrl = TextEditingController(

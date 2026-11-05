@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' as io;
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart' show PdfPageFormat;

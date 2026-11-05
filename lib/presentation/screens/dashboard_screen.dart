@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';

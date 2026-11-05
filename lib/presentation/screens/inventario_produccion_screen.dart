@@ -48,12 +48,6 @@ class _InventarioProduccionScreenState
   List<Insumo> _items = [];
   String _busqueda = '';
 
-  List<String> get _categoriasDisponibles {
-    final setCats = _items.map((i) => i.categoria).where((c) => c.isNotEmpty).toSet();
-    if (setCats.isEmpty) return ['Materia Prima'];
-    return setCats.toList()..sort();
-  }
-
   @override
   void initState() {
     super.initState();

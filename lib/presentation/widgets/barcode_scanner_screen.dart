@@ -26,7 +26,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     // Solo forzamos CameraFacing.back en plataformas móviles reales.
     _controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: kIsWeb ? null : CameraFacing.back,
+      facing: CameraFacing.back,
       torchEnabled: false,
     );
 

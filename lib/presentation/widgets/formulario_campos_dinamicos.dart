@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_theme.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../domain/models/campo_personalizado.dart';
 import 'barcode_scanner_screen.dart';
 import '../screens/campos_personalizados_screen.dart';

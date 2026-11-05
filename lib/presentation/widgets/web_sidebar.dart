@@ -10,7 +10,6 @@ import '../blocs/auth/auth_event.dart';
 import '../blocs/auth/auth_state.dart';
 import '../screens/perfil_screen.dart';
 import '../screens/hardware_screen.dart';
-import '../screens/campos_personalizados_screen.dart';
 
 class WebSidebar extends StatelessWidget {
   final bool isCollapsed;
