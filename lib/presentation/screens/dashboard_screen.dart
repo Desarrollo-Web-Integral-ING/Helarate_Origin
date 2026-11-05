@@ -21,6 +21,7 @@ import 'estadisticas_screen.dart';
 import 'perfil_screen.dart';
 import 'personalizacion_screen.dart';
 import '../../core/widgets/business_icon_helper.dart';
+import '../../core/widgets/indexed_stack_resume.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});

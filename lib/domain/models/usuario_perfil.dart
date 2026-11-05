@@ -29,7 +29,6 @@ class UsuarioPerfil {
         ? avatarSeed!.trim()
         : (nombre.isNotEmpty ? nombre : id);
     final encoded = Uri.encodeComponent(seed);
-    final rawUrl = 'https://api.dicebear.com/9.x/' + avatarStyle + '/png?seed=' + encoded;
     return 'https://api.dicebear.com/9.x/$avatarStyle/png?seed=$encoded';
   }
 
