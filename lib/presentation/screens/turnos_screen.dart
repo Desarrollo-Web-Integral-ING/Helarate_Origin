@@ -1233,6 +1233,9 @@ class _HorariosTabState extends State<_HorariosTab> {
   List<EmpleadoResumen> _empleados = [];
   TurnosConfig _config = const TurnosConfig();
   bool _guardandoConfig = false;
+  String _genEntrada = '09:00';
+  String _genSalida = '18:00';
+  int _genComida = 30;
   String? _seleccionado;
   Map<int, HorarioEmpleado> _borrador = {};
   bool _cargando = true;
@@ -1326,6 +1329,110 @@ class _HorariosTabState extends State<_HorariosTab> {
     setState(() {
       _borrador[dia] = esEntrada ? h.copyWith(horaEntrada: _hhmm(t)) : h.copyWith(horaSalida: _hhmm(t));
     });
+  }
+
+  Future<void> _elegirHoraGeneral(bool esEntrada) async {
+    final t = await showTimePicker(
+      context: context,
+      initialTime: _parseHora(esEntrada ? _genEntrada : _genSalida),
+    );
+    if (t == null) return;
+    setState(() => esEntrada ? _genEntrada = _hhmm(t) : _genSalida = _hhmm(t));
+  }
+
+  /// Aplica entrada, salida y comida generales a los dias activos
+  /// (o a lunes-viernes activandolos).
+  void _aplicarGeneral({required bool soloActivos}) {
+    var n = 0;
+    setState(() {
+      for (var d = 1; d <= 7; d++) {
+        final h = _borrador[d]!;
+        if (soloActivos ? !h.activo : d > 5) continue;
+        _borrador[d] = h.copyWith(
+          horaEntrada: _genEntrada,
+          horaSalida: _genSalida,
+          comidaMinutos: _genComida,
+          activo: true,
+        );
+        n++;
+      }
+    });
+    if (n == 0) {
+      AppToast.showInfo(context, 'No hay días activos. Activa algún día o usa lunes–viernes.');
+    } else {
+      AppToast.showInfo(context, 'Se aplicó $_genEntrada – $_genSalida a $n día${n == 1 ? '' : 's'}');
+    }
+  }
+
+  Widget _horarioGeneralCard(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: context.surfaceColor,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: context.borderColor),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(children: [
+            Icon(Icons.schedule_rounded, size: 18),
+            SizedBox(width: 8),
+            Text('Horario general', style: TextStyle(fontWeight: FontWeight.w800)),
+          ]),
+          const SizedBox(height: 4),
+          Text(
+            'Define entrada, salida y comida una vez y aplícalo a los días del horario de abajo.',
+            style: TextStyle(fontSize: 12, color: context.textMuted),
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _elegirHoraGeneral(true),
+                icon: const Icon(Icons.login_rounded, size: 16),
+                label: Text('Entrada $_genEntrada'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _elegirHoraGeneral(false),
+                icon: const Icon(Icons.logout_rounded, size: 16),
+                label: Text('Salida $_genSalida'),
+              ),
+              DropdownButton<int>(
+                value: _genComida,
+                underline: const SizedBox.shrink(),
+                items: [
+                  for (final m in const [0, 15, 30, 45, 60, 90])
+                    DropdownMenuItem(value: m, child: Text(m == 0 ? 'Sin comida' : 'Comida $m min')),
+                ],
+                onChanged: (v) {
+                  if (v != null) setState(() => _genComida = v);
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: _cargandoHorario ? null : () => _aplicarGeneral(soloActivos: true),
+                icon: const Icon(Icons.done_all_rounded, size: 18),
+                label: const Text('Aplicar a días activos'),
+              ),
+              OutlinedButton(
+                onPressed: _cargandoHorario ? null : () => _aplicarGeneral(soloActivos: false),
+                child: const Text('Lunes a viernes'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   void _aplicarALunesAViernes() {
@@ -1425,6 +1532,8 @@ class _HorariosTabState extends State<_HorariosTab> {
 
     final selector = <Widget>[
                 _reglasDelNegocio(context),
+                const SizedBox(height: 14),
+                _horarioGeneralCard(context),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _seleccionado,
