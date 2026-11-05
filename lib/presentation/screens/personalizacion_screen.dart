@@ -458,7 +458,7 @@ class _PersonalizacionScreenState extends State<PersonalizacionScreen> {
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: isMobile ? 3 : 6,
               mainAxisSpacing: 10,
               crossAxisSpacing: 10,
