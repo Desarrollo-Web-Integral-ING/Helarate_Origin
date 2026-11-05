@@ -99,28 +99,23 @@ class _HardwareScreenState extends State<HardwareScreen> {
       appBar: AppBar(title: const Text('Equipos de caja')),
       body: ListenableBuilder(
         listenable: hw,
-        builder: (context, _) => Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14, left: 4, right: 4),
-                  child: Text(
-                    'Esta configuración es de esta terminal (computadora o tablet). '
-                    'Cada caja puede tener su propia impresora, cajón y lector.',
-                    style: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
-                  ),
-                ),
-                _printerSection(context),
-                const SizedBox(height: 16),
-                _drawerSection(context),
-                const SizedBox(height: 16),
-                _scannerSection(context),
-              ],
+        builder: (context, _) => ListView(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 14, left: 4, right: 4),
+              child: Text(
+                'Esta configuración es de esta terminal (computadora o tablet). '
+                'Cada caja puede tener su propia impresora, cajón y lector.',
+                style: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
+              ),
             ),
-          ),
+            _printerSection(context),
+            const SizedBox(height: 16),
+            _drawerSection(context),
+            const SizedBox(height: 16),
+            _scannerSection(context),
+          ],
         ),
       ),
     );

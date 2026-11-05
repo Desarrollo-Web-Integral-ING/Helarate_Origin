@@ -415,7 +415,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final actions = [
       _QuickAction('Insumos', Icons.inventory_2_rounded, AppTheme.productionGradient,
           () => _goTo(const InventarioProduccionScreen())),
-      _QuickAction('Catálogo', Icons.shopping_bag_rounded, AppTheme.stockGradient,
+      _QuickAction('Productos', Icons.shopping_bag_rounded, AppTheme.stockGradient,
           () => _goTo(const InventarioVentaScreen())),
       _QuickAction('Caja Ventas', Icons.point_of_sale_rounded, AppTheme.salesGradient,
           () => _goTo(const VentasScreen())),

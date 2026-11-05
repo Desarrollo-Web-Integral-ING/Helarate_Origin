@@ -385,7 +385,7 @@ class _MainNavigationState extends State<MainNavigation> {
     final items = <Widget>[
       if (_puedeVer(0)) _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
       if (_puedeVer(1)) _navItem(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Insumos'),
-      if (_puedeVer(2)) _navItem(2, Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, 'Catálogo'),
+      if (_puedeVer(2)) _navItem(2, Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, 'Productos'),
       if (_puedeVer(3)) _navItem(3, Icons.point_of_sale_rounded, Icons.point_of_sale_outlined, 'Ventas'),
       if (_puedeVer(4)) _navItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
       if (_puedeVer(8)) _navItem(8, Icons.timer_rounded, Icons.timer_outlined, 'Turnos'),

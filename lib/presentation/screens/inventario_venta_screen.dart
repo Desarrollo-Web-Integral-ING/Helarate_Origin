@@ -131,7 +131,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Catálogo de Productos'),
+        title: const Text('Productos'),
         actions: [
           IfPermitted(permiso: Permiso.catalogoEditar, child: IconButton(icon: const Icon(Icons.add_rounded), onPressed: () => _showForm())),
         ],

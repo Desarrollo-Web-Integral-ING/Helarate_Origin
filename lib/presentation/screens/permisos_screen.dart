@@ -324,15 +324,12 @@ class _PorRolTabState extends State<_PorRolTab> {
     final roles = _perms.rolesPersonalizados;
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
                   'Define qué puede hacer cada rol. El dueño siempre tiene todos los permisos. '
                   'Crea roles propios (socio, reportes, supervisor...) y asígnalos desde Usuarios.',
                   style: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
@@ -439,8 +436,6 @@ class _PorRolTabState extends State<_PorRolTab> {
                 ],
               ],
             ),
-          ),
-        ),
       ],
     );
   }
@@ -749,15 +744,12 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
     final intocable = u != null && Permiso.esRolIntocable(u.rol);
 
     return ListView(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
                   'Da o quita permisos a una persona en particular. Lo que no cambies se hereda de su rol.',
                   style: TextStyle(color: context.textMuted, fontSize: 13, height: 1.4),
                 ),
@@ -813,8 +805,6 @@ class _PorUsuarioTabState extends State<_PorUsuarioTab> {
                 ],
               ],
             ),
-          ),
-        ),
       ],
     );
   }
