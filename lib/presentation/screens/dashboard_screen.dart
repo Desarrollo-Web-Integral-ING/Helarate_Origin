@@ -1,4 +1,4 @@
-import '../../core/widgets/avatar_image.dart';
+import '../../core/widgets/user_avatar.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
@@ -179,12 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
                               ],
                             ),
-                            child: AppAvatarImage(
-                              url: user.avatarUrl,
-                              size: 44,
-                              fallbackInitial: user.nombre,
-                              backgroundColor: Colors.white.withValues(alpha: 0.3),
-                            ),
+                            child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 44),
                           ),
                         );
                       }

@@ -1,7 +1,14 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_theme.dart';
 
+/// Escáner con la cámara del dispositivo (códigos de barras y QR).
+///
+/// Pide el permiso de cámara de forma explícita en Android/iOS. En el
+/// navegador el aviso de permiso lo muestra el propio navegador al abrir la
+/// cámara (requiere HTTPS o localhost).
 class BarcodeScannerScreen extends StatefulWidget {
   final void Function(String code) onScanned;
 
@@ -11,21 +18,28 @@ class BarcodeScannerScreen extends StatefulWidget {
   State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
 }
 
+enum _CamState { checking, ready, denied, permanentlyDenied, insecure }
+
 class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     with SingleTickerProviderStateMixin {
   late final MobileScannerController _controller;
   late final AnimationController _animCtrl;
   late final Animation<double> _laserPosition;
   bool _hasScanned = false;
+  _CamState _camState = _CamState.checking;
+
+  bool get _isMobileOs =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   @override
   void initState() {
     super.initState();
-    // En Web en laptops o desktops no existe CameraFacing.back y causa genericError.
-    // Solo forzamos CameraFacing.back en plataformas móviles reales.
     _controller = MobileScannerController(
+      autoStart: false, // se inicia solo cuando el permiso está resuelto
       detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
+      // En laptops/PC no existe cámara trasera; solo se pide en móviles.
+      facing: _isMobileOs ? CameraFacing.back : CameraFacing.front,
       torchEnabled: false,
     );
 
@@ -37,6 +51,45 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     _laserPosition = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(parent: _animCtrl, curve: Curves.easeInOut),
     );
+
+    _prepareCamera();
+  }
+
+  Future<void> _prepareCamera() async {
+    setState(() => _camState = _CamState.checking);
+
+    if (kIsWeb) {
+      // El navegador solo permite la cámara en HTTPS o localhost.
+      final host = Uri.base.host;
+      final secure = Uri.base.scheme == 'https' ||
+          host == 'localhost' ||
+          host == '127.0.0.1' ||
+          host == '[::1]';
+      if (!secure) {
+        setState(() => _camState = _CamState.insecure);
+        return;
+      }
+    } else if (_isMobileOs) {
+      final status = await Permission.camera.request();
+      if (!mounted) return;
+      if (status.isPermanentlyDenied || status.isRestricted) {
+        setState(() => _camState = _CamState.permanentlyDenied);
+        return;
+      }
+      if (!status.isGranted && !status.isLimited) {
+        setState(() => _camState = _CamState.denied);
+        return;
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => _camState = _CamState.ready);
+    try {
+      // En web, aquí es donde el navegador muestra su aviso de permiso.
+      await _controller.start();
+    } catch (_) {
+      // El error se muestra mediante el errorBuilder de MobileScanner.
+    }
   }
 
   @override
@@ -46,10 +99,207 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     super.dispose();
   }
 
+  Future<void> _manualEntry() async {
+    final ctrl = TextEditingController();
+    final code = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Escribir código'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(
+            labelText: 'Código de barras / QR',
+            prefixIcon: Icon(Icons.qr_code_rounded),
+          ),
+          onSubmitted: (v) => Navigator.pop(ctx, v.trim()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+            child: const Text('Usar código'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (code != null && code.isNotEmpty && mounted) {
+      _hasScanned = true;
+      widget.onScanned(code);
+      Navigator.pop(context);
+    }
+  }
+
+  /// Panel de problema con instrucciones claras y acciones.
+  Widget _problemPanel({
+    required IconData icon,
+    required String title,
+    required String message,
+    String? primaryLabel,
+    IconData primaryIcon = Icons.refresh_rounded,
+    VoidCallback? onPrimary,
+  }) {
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 460),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, color: Colors.amberAccent, size: 64),
+                const SizedBox(height: 20),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  message,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14, height: 1.45),
+                ),
+                const SizedBox(height: 28),
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  alignment: WrapAlignment.center,
+                  children: [
+                    if (primaryLabel != null)
+                      ElevatedButton.icon(
+                        onPressed: onPrimary,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppTheme.brandPrimary,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 14),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                        icon: Icon(primaryIcon),
+                        label: Text(primaryLabel),
+                      ),
+                    OutlinedButton.icon(
+                      onPressed: _manualEntry,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.white,
+                        side: const BorderSide(color: Colors.white38),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      icon: const Icon(Icons.keyboard_rounded),
+                      label: const Text('Escribir código'),
+                    ),
+                    TextButton.icon(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(foregroundColor: Colors.white70),
+                      icon: const Icon(Icons.close_rounded),
+                      label: const Text('Cancelar'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCameraError(MobileScannerException error) {
+    switch (error.errorCode) {
+      case MobileScannerErrorCode.permissionDenied:
+        return _problemPanel(
+          icon: Icons.no_photography_outlined,
+          title: 'Permiso de cámara denegado',
+          message: kIsWeb
+              ? 'Bloqueaste la cámara para este sitio. Pulsa el candado junto a la dirección del navegador, '
+                  'cambia "Cámara" a "Permitir" y pulsa Reintentar.'
+              : 'Activa el permiso de cámara en los ajustes del dispositivo y vuelve a intentarlo.',
+          primaryLabel: kIsWeb ? 'Reintentar' : 'Abrir ajustes',
+          primaryIcon: kIsWeb ? Icons.refresh_rounded : Icons.settings_rounded,
+          onPrimary: kIsWeb ? _prepareCamera : openAppSettings,
+        );
+      case MobileScannerErrorCode.unsupported:
+        return _problemPanel(
+          icon: Icons.videocam_off_outlined,
+          title: 'Cámara no compatible',
+          message: 'Este navegador o dispositivo no permite usar la cámara para escanear. '
+              'Puedes usar un lector USB/Bluetooth o escribir el código.',
+        );
+      default:
+        final detail = error.errorDetails?.message;
+        return _problemPanel(
+          icon: Icons.camera_alt_outlined,
+          title: 'No se pudo iniciar la cámara',
+          message: 'Comprueba que ninguna otra aplicación esté usando la cámara y que esté conectada.'
+              '${detail != null ? '\n\n($detail)' : ''}',
+          primaryLabel: 'Reintentar',
+          onPrimary: _prepareCamera,
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    switch (_camState) {
+      case _CamState.checking:
+        return const Scaffold(
+          backgroundColor: Colors.black,
+          body: Center(child: CircularProgressIndicator(color: Colors.white)),
+        );
+      case _CamState.denied:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.no_photography_outlined,
+            title: 'Necesitamos la cámara',
+            message: 'Para escanear códigos con la cámara hay que permitir su uso. '
+                'Pulsa el botón y acepta el aviso del sistema.',
+            primaryLabel: 'Permitir cámara',
+            primaryIcon: Icons.camera_alt_rounded,
+            onPrimary: _prepareCamera,
+          ),
+        );
+      case _CamState.permanentlyDenied:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.no_photography_outlined,
+            title: 'Permiso de cámara bloqueado',
+            message: 'El sistema ya no volverá a preguntar. Abre los ajustes de la app, '
+                'entra en Permisos y activa Cámara.',
+            primaryLabel: 'Abrir ajustes',
+            primaryIcon: Icons.settings_rounded,
+            onPrimary: () async {
+              await openAppSettings();
+            },
+          ),
+        );
+      case _CamState.insecure:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.lock_outline_rounded,
+            title: 'La cámara requiere HTTPS',
+            message: 'Los navegadores solo permiten la cámara en páginas seguras (https://) '
+                'o en localhost. Abre la app con HTTPS, o usa un lector USB/Bluetooth.',
+          ),
+        );
+      case _CamState.ready:
+        return _buildScanner(context);
+    }
+  }
+
+  Widget _buildScanner(BuildContext context) {
     final size = MediaQuery.of(context).size;
-    final scanWindowWidth = size.width * 0.78;
+    final scanWindowWidth = (size.width * 0.78).clamp(220.0, 520.0);
     const scanWindowHeight = 180.0;
     final scanWindow = Rect.fromLTWH(
       (size.width - scanWindowWidth) / 2,
@@ -66,86 +316,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
           MobileScanner(
             controller: _controller,
             scanWindow: scanWindow,
-            errorBuilder: (context, error) {
-              return Container(
-                color: Colors.black,
-                child: Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(28.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Icon(
-                          Icons.camera_alt_outlined,
-                          color: Colors.amberAccent,
-                          size: 68,
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          'Permiso de Cámara Requerido',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'No se pudo acceder a la cámara. Por favor autoriza el permiso en el navegador o ajustes de tu dispositivo.\n(${error.errorCode.name}${error.errorDetails?.message != null ? ': ' + error.errorDetails!.message! : ''})',
-                          style: const TextStyle(
-                            color: Colors.white70,
-                            fontSize: 14,
-                            height: 1.4,
-                          ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 32),
-                        Wrap(
-                          spacing: 12,
-                          runSpacing: 12,
-                          alignment: WrapAlignment.center,
-                          children: [
-                            ElevatedButton.icon(
-                              onPressed: () => _controller.start(),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppTheme.brandPrimary,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 24,
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              icon: const Icon(Icons.refresh_rounded),
-                              label: const Text('Reintentar'),
-                            ),
-                            OutlinedButton.icon(
-                              onPressed: () => Navigator.pop(context),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white70,
-                                side: const BorderSide(color: Colors.white30),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                              ),
-                              icon: const Icon(Icons.close_rounded),
-                              label: const Text('Cancelar'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              );
-            },
+            errorBuilder: (context, error) => _buildCameraError(error),
             onDetect: (BarcodeCapture capture) {
               if (_hasScanned) return;
               final List<Barcode> barcodes = capture.barcodes;
@@ -160,40 +331,48 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             },
           ),
 
-          // 2. Overlay Oscuro con Ventana Recortada
-          CustomPaint(
-            size: size,
-            painter: ScannerOverlayPainter(scanWindow: scanWindow),
+          // 2. Overlay oscuro con ventana recortada
+          IgnorePointer(
+            child: CustomPaint(
+              size: size,
+              painter: ScannerOverlayPainter(scanWindow: scanWindow),
+            ),
           ),
 
-          // 3. Línea Láser Animada
-          AnimatedBuilder(
-            animation: _laserPosition,
-            builder: (context, child) {
-              final topPos =
-                  scanWindow.top + (scanWindow.height * _laserPosition.value);
-              return Positioned(
-                left: scanWindow.left + 8,
-                top: topPos,
-                width: scanWindow.width - 16,
-                child: Container(
-                  height: 2.5,
-                  decoration: BoxDecoration(
-                    color: Colors.redAccent,
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.redAccent.withValues(alpha: 0.8),
-                        blurRadius: 8,
-                        spreadRadius: 2,
+          // 3. Línea láser animada
+          IgnorePointer(
+            child: AnimatedBuilder(
+              animation: _laserPosition,
+              builder: (context, child) {
+                final topPos =
+                    scanWindow.top + (scanWindow.height * _laserPosition.value);
+                return Stack(
+                  children: [
+                    Positioned(
+                      left: scanWindow.left + 8,
+                      top: topPos,
+                      width: scanWindow.width - 16,
+                      child: Container(
+                        height: 2.5,
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.redAccent.withValues(alpha: 0.8),
+                              blurRadius: 8,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
                       ),
-                    ],
-                  ),
-                ),
-              );
-            },
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
 
-          // 4. Barra Superior Flotante
+          // 4. Barra superior flotante
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -210,49 +389,42 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                   ),
                   Row(
                     children: [
-                      // Botón Linterna (solo móvil habitualmente)
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
+                      IconButton.filled(
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black.withValues(alpha: 0.5),
+                          foregroundColor: Colors.white,
                         ),
-                        child: ValueListenableBuilder<MobileScannerState>(
-                          valueListenable: _controller,
-                          builder: (context, state, child) {
-                            final isFlashOn = state.torchState == TorchState.on;
-                            return IconButton(
-                              icon: Icon(
-                                isFlashOn
-                                    ? Icons.flash_on_rounded
-                                    : Icons.flash_off_rounded,
-                                color: isFlashOn ? Colors.yellow : Colors.white,
-                              ),
-                              onPressed: () => _controller.toggleTorch(),
-                              tooltip: 'Linterna',
-                            );
-                          },
-                        ),
+                        tooltip: 'Escribir código',
+                        icon: const Icon(Icons.keyboard_rounded),
+                        onPressed: _manualEntry,
                       ),
-                      const SizedBox(width: 12),
-                      // Botón Girar Cámara
-                      Container(
-                        decoration: BoxDecoration(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          shape: BoxShape.circle,
+                      const SizedBox(width: 10),
+                      ValueListenableBuilder<MobileScannerState>(
+                        valueListenable: _controller,
+                        builder: (context, state, child) {
+                          final isFlashOn = state.torchState == TorchState.on;
+                          return IconButton.filled(
+                            style: IconButton.styleFrom(
+                              backgroundColor: Colors.black.withValues(alpha: 0.5),
+                            ),
+                            icon: Icon(
+                              isFlashOn ? Icons.flash_on_rounded : Icons.flash_off_rounded,
+                              color: isFlashOn ? Colors.yellow : Colors.white,
+                            ),
+                            onPressed: () => _controller.toggleTorch(),
+                            tooltip: 'Linterna',
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 10),
+                      IconButton.filled(
+                        style: IconButton.styleFrom(
+                          backgroundColor: Colors.black.withValues(alpha: 0.5),
+                          foregroundColor: Colors.white,
                         ),
-                        child: ValueListenableBuilder<MobileScannerState>(
-                          valueListenable: _controller,
-                          builder: (context, state, child) {
-                            return IconButton(
-                              icon: const Icon(
-                                Icons.flip_camera_android_rounded,
-                                color: Colors.white,
-                              ),
-                              onPressed: () => _controller.switchCamera(),
-                              tooltip: 'Girar Cámara',
-                            );
-                          },
-                        ),
+                        icon: const Icon(Icons.flip_camera_android_rounded),
+                        onPressed: () => _controller.switchCamera(),
+                        tooltip: 'Girar cámara',
                       ),
                     ],
                   ),
@@ -303,45 +475,25 @@ class ScannerOverlayPainter extends CustomPainter {
     // Esquina superior izquierda
     path.moveTo(scanWindow.left, scanWindow.top + len);
     path.lineTo(scanWindow.left, scanWindow.top + r);
-    path.quadraticBezierTo(
-      scanWindow.left,
-      scanWindow.top,
-      scanWindow.left + r,
-      scanWindow.top,
-    );
+    path.quadraticBezierTo(scanWindow.left, scanWindow.top, scanWindow.left + r, scanWindow.top);
     path.lineTo(scanWindow.left + len, scanWindow.top);
 
     // Esquina superior derecha
     path.moveTo(scanWindow.right - len, scanWindow.top);
     path.lineTo(scanWindow.right - r, scanWindow.top);
-    path.quadraticBezierTo(
-      scanWindow.right,
-      scanWindow.top,
-      scanWindow.right,
-      scanWindow.top + r,
-    );
+    path.quadraticBezierTo(scanWindow.right, scanWindow.top, scanWindow.right, scanWindow.top + r);
     path.lineTo(scanWindow.right, scanWindow.top + len);
 
     // Esquina inferior izquierda
     path.moveTo(scanWindow.left, scanWindow.bottom - len);
     path.lineTo(scanWindow.left, scanWindow.bottom - r);
-    path.quadraticBezierTo(
-      scanWindow.left,
-      scanWindow.bottom,
-      scanWindow.left + r,
-      scanWindow.bottom,
-    );
+    path.quadraticBezierTo(scanWindow.left, scanWindow.bottom, scanWindow.left + r, scanWindow.bottom);
     path.lineTo(scanWindow.left + len, scanWindow.bottom);
 
     // Esquina inferior derecha
     path.moveTo(scanWindow.right - len, scanWindow.bottom);
     path.lineTo(scanWindow.right - r, scanWindow.bottom);
-    path.quadraticBezierTo(
-      scanWindow.right,
-      scanWindow.bottom,
-      scanWindow.right,
-      scanWindow.bottom - r,
-    );
+    path.quadraticBezierTo(scanWindow.right, scanWindow.bottom, scanWindow.right, scanWindow.bottom - r);
     path.lineTo(scanWindow.right, scanWindow.bottom - len);
 
     canvas.drawPath(path, borderPaint);

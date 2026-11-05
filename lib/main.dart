@@ -41,8 +41,10 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) {
     try {
-      // Usar BarcodeDetector nativo del navegador en Web para no depender de descargas externas de CDN
-      MobileScannerPlatform.instance.setWebBarcodeReader(WebBarcodeReader.barcodeDetector);
+      // Lector ZXing incluido en web/zxing (sin depender de CDN externos, que
+      // pueden estar bloqueados por la red o por extensiones del navegador).
+      MobileScannerPlatform.instance.setBarcodeLibraryScriptUrl('zxing/zxing-library.min.js');
+      MobileScannerPlatform.instance.setWebBarcodeReader(WebBarcodeReader.zxingJs);
     } catch (_) {}
   }
 

@@ -1,4 +1,4 @@
-import '../../core/widgets/avatar_image.dart';
+import '../../core/widgets/user_avatar.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
@@ -44,15 +44,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
   bool _modoOscuro = false;
   String _selectedBusinessIcon = 'storefront';
 
-  // Opciones de estilos de avatares DiceBear
-  final List<Map<String, String>> _avatarStyles = [
-    {'id': 'notionists', 'label': 'Notion Minimal'},
-    {'id': 'bottts', 'label': 'Robots Tech'},
-    {'id': 'lorelei', 'label': 'Arte Anime'},
-    {'id': 'adventurer', 'label': 'Ilustrado'},
-    {'id': 'avataaars', 'label': 'Clásico Humano'},
-    {'id': 'micah', 'label': 'Modern Flat'},
-  ];
 
   @override
   void dispose() {
@@ -110,7 +101,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
       final actualizado = await _authRepository.updateAvatar(style, seed);
       if (!mounted) return;
       context.read<AuthBloc>().add(ProfileUpdated(actualizado));
-      _mostrarSnack('¡Avatar DiceBear actualizado con éxito!');
+      _mostrarSnack('¡Avatar actualizado!');
     } catch (e) {
       _mostrarSnack('Error al cambiar avatar: $e', esError: true);
     } finally {
@@ -328,12 +319,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   ],
                 ),
               ),
-              AppAvatarImage(
-                url: perfil.avatarUrl,
-                size: 90,
-                fallbackInitial: perfil.nombre,
-                backgroundColor: brandColor,
-              ),
+              UserAvatar(style: perfil.avatarStyle, seed: perfil.avatarSeed ?? '', name: perfil.nombre, size: 90),
             ],
           ),
           const SizedBox(height: 16),
@@ -448,11 +434,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Diseño de Avatar (DiceBear Styles)',
+                      'Diseño de avatar',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     Text(
-                      'Selecciona tu estilo de avatar personal o genera uno aleatorio',
+                      'Elige un estilo o genera una variante aleatoria (funciona sin internet)',
                       style: TextStyle(fontSize: 12, color: context.textMuted),
                     ),
                   ],
@@ -464,7 +450,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
           ),
           const SizedBox(height: 20),
           const Text(
-            'Elige un estilo artístico:',
+            'Elige un estilo:',
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
           ),
           const SizedBox(height: 12),
@@ -472,16 +458,15 @@ class _PerfilScreenState extends State<PerfilScreen> {
             height: 110,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              itemCount: _avatarStyles.length,
+              itemCount: UserAvatar.styles.length,
               separatorBuilder: (_, __) => const SizedBox(width: 12),
               itemBuilder: (context, idx) {
-                final style = _avatarStyles[idx];
-                final isSelected = perfil.avatarStyle == style['id'];
-                final rawDemo = 'https://api.dicebear.com/9.x/' + style['id']! + '/png?seed=' + Uri.encodeComponent(perfil.nombre);
-                final demoUrl = rawDemo;
+                final style = UserAvatar.styles[idx];
+                final avatarSeed = UserAvatar.effectiveSeed(perfil.avatarSeed, perfil.nombre);
+                final isSelected = UserAvatar.resolveStyle(perfil.avatarStyle, avatarSeed) == style.id;
 
                 return GestureDetector(
-                  onTap: () => _cambiarAvatarDiceBear(style['id']!, perfil.nombre),
+                  onTap: () => _cambiarAvatarDiceBear(style.id, avatarSeed),
                   child: AnimatedContainer(
                     duration: const Duration(milliseconds: 200),
                     width: 90,
@@ -498,16 +483,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: AppAvatarImage(
-                            url: demoUrl,
-                            size: 52,
-                            fallbackInitial: perfil.nombre,
-                            backgroundColor: Colors.blueAccent,
-                          ),
+                          child: UserAvatar(style: style.id, seed: avatarSeed, name: perfil.nombre, size: 52, circle: false),
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          style['label']!,
+                          style.label,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(

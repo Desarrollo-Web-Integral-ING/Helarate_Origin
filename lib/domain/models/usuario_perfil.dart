@@ -4,7 +4,7 @@ class UsuarioPerfil {
   final String rol; // 'dueño' o 'empleado'
   final String email;
   final String? tenantId;
-  final String avatarStyle; // 'notionists', 'bottts', 'lorelei', 'adventurer', 'avataaars'
+  final String avatarStyle; // 'gradiente', 'iniciales', 'geometrico', 'pixel', 'burbujas', 'robot', 'cara'
   final String? avatarSeed;
   final DateTime createdAt;
   final DateTime? aceptadoAvisoAt;
@@ -15,7 +15,7 @@ class UsuarioPerfil {
     required this.rol,
     this.email = '',
     this.tenantId,
-    this.avatarStyle = 'notionists',
+    this.avatarStyle = 'gradiente',
     this.avatarSeed,
     required this.createdAt,
     this.aceptadoAvisoAt,
@@ -23,14 +23,6 @@ class UsuarioPerfil {
 
   bool get isOwner => rol == 'dueño';
   bool get isEmployee => rol == 'empleado';
-
-  String get avatarUrl {
-    final seed = (avatarSeed != null && avatarSeed!.trim().isNotEmpty)
-        ? avatarSeed!.trim()
-        : (nombre.isNotEmpty ? nombre : id);
-    final encoded = Uri.encodeComponent(seed);
-    return 'https://api.dicebear.com/9.x/$avatarStyle/png?seed=$encoded';
-  }
 
   UsuarioPerfil copyWith({
     String? nombre,
@@ -73,7 +65,7 @@ class UsuarioPerfil {
       rol: json['rol'] as String? ?? 'empleado',
       email: json['email'] as String? ?? '',
       tenantId: json['tenant_id'] as String?,
-      avatarStyle: json['avatar_style'] as String? ?? 'notionists',
+      avatarStyle: json['avatar_style'] as String? ?? 'gradiente',
       avatarSeed: json['avatar_seed'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
       aceptadoAvisoAt: json['aceptado_aviso_at'] != null 

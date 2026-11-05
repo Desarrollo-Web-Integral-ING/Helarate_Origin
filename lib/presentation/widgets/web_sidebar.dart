@@ -1,4 +1,4 @@
-import '../../core/widgets/avatar_image.dart';
+import '../../core/widgets/user_avatar.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -326,12 +326,7 @@ class WebSidebar extends StatelessWidget {
                   border: Border.all(
                       color: brandColor.withValues(alpha: 0.5), width: 1.5),
                 ),
-                child: AppAvatarImage(
-                  url: user.avatarUrl,
-                  size: 40,
-                  fallbackInitial: initials,
-                  backgroundColor: brandColor,
-                ),
+                child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 40),
               ),
               if (!isCollapsed) ...[
                 const SizedBox(width: 12),
