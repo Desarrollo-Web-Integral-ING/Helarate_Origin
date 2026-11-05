@@ -48,10 +48,11 @@ class _InventarioProduccionScreenState
   List<Insumo> _items = [];
   String _busqueda = '';
 
-  static const _categorias = [
-    'Plásticos', 'Vasos térmicos', 'Tapas y vasos', 'Cubiertos',
-    'Servilletas', 'Barquillos y conos', 'Otros'
-  ];
+  List<String> get _categoriasDisponibles {
+    final setCats = _items.map((i) => i.categoria).where((c) => c.isNotEmpty).toSet();
+    if (setCats.isEmpty) return ['Materia Prima'];
+    return setCats.toList()..sort();
+  }
 
   @override
   void initState() {
@@ -513,8 +514,7 @@ class _InventarioProduccionScreenState
         text: producto?.stockMinimo == 0 ? '' : producto?.stockMinimo.toString() ?? '');
     final precioCtrl = TextEditingController(
         text: producto?.costoUnitario == 0 ? '' : producto?.costoUnitario.toString() ?? '');
-    String categoria = _categorias.contains(producto?.categoria)
-        ? producto!.categoria : _categorias.first;
+    final categoriaCtrl = TextEditingController(text: producto?.categoria ?? 'Materia Prima');
     String? imagenPath = producto?.imagenPath;
     PickedImageData? selectedImage;
     bool isSaving = false;
@@ -737,7 +737,7 @@ class _InventarioProduccionScreenState
                                 stockActual: double.tryParse(cantidadCtrl.text) ?? 0,
                                 stockMinimo: double.tryParse(cantMinCtrl.text) ?? 0,
                                 costoUnitario: double.tryParse(precioCtrl.text) ?? 0,
-                                categoria: categoria,
+                                categoria: categoriaCtrl.text.trim().isNotEmpty ? categoriaCtrl.text.trim() : 'Materia Prima',
                                 tipo: TipoInsumo.materiaPrima,
                                 precioVenta: 0,
                                 userId: producto?.userId,

@@ -47,9 +47,15 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   String _busqueda = '';
   String _filtroCategoria = 'Todos';
 
-  static const _tipos = ['Litro', 'Cono', 'Cono de galleta', 'Cazuela', 'Vaso', 'Otros'];
-  static const _filtros = ['Todos', 'Litro', 'Cono', 'Cono de galleta', 'Cazuela', 'Vaso', 'Otros'];
-  static const _tamanos = ['Chico', 'Mediano', 'Grande', 'Extra'];
+  List<String> get _categoriasDisponibles {
+    final setCats = _items.map((i) => i.categoria).where((c) => c.isNotEmpty).toSet();
+    if (setCats.isEmpty) return ['General'];
+    return setCats.toList()..sort();
+  }
+
+  List<String> get _filtros {
+    return ['Todos', ..._categoriasDisponibles];
+  }
 
   @override
   void initState() {
@@ -284,9 +290,9 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                 fontWeight: FontWeight.w600, fontSize: 14, color: isDark ? Color(0xFFF8FAFC) : context.textMain)),
             subtitle: Text(
               [
-                if (p.sabor != null && p.sabor!.isNotEmpty) p.sabor!,
+                // sabor
                 p.categoria,
-                if (p.categoria == 'Vaso' && p.tamano != null && p.tamano!.isNotEmpty) p.tamano!,
+                // tamano
               ].join(' · '),
               style: TextStyle(fontSize: 11, color: isDark ? Color(0xFF94A3B8) : context.textMuted),
             ),
@@ -539,8 +545,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     final stockCtrl = TextEditingController(
         text: producto?.stockActual == 0 ? '' : producto?.stockActual.toString() ?? '');
     final stockMinCtrl = TextEditingController(text: producto?.stockMinimo.toString() ?? '1');
-    String tamano = _tamanos.contains(producto?.tamano) ? producto!.tamano! : _tamanos.first;
-    String categoria = _tipos.contains(producto?.categoria) ? producto!.categoria : _tipos.first;
+    final categoriaCtrl = TextEditingController(text: producto?.categoria ?? 'General');
     String? imagenPath = producto?.imagenPath;
     PickedImageData? selectedImage;
     bool isSaving = false;
@@ -649,34 +654,13 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                   ),
                   const SizedBox(height: 10),
                   TextFormField(
-                    controller: saborCtrl,
-                    decoration: const InputDecoration(labelText: 'Sabor (Opcional)'),
-                    maxLength: 30,
-                    validator: (value) {
-                      if (value != null && value.trim().length > 30) {
-                        return 'El sabor no puede superar los 30 caracteres';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 10),
-                  DropdownButtonFormField<String>(
-                    value: categoria,
-                    decoration: const InputDecoration(labelText: 'Tipo'),
-                    items: _tipos.map((t) =>
-                        DropdownMenuItem(value: t, child: Text(t))).toList(),
-                    onChanged: (v) => setModal(() => categoria = v!),
-                  ),
-                  if (categoria == 'Vaso') ...[
-                    const SizedBox(height: 10),
-                    DropdownButtonFormField<String>(
-                      value: tamano,
-                      decoration: const InputDecoration(labelText: 'Tamaño'),
-                      items: _tamanos.map((t) =>
-                          DropdownMenuItem(value: t, child: Text(t))).toList(),
-                      onChanged: (v) => setModal(() => tamano = v!),
+                    controller: categoriaCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Categoría (Opcional)',
+                      hintText: 'Ej. Bebidas, Figuras, Snacks, Accesorios',
+                      prefixIcon: Icon(Icons.category_outlined),
                     ),
-                  ],
+                  ),
                   const SizedBox(height: 10),
                   Row(children: [
                     Expanded(
@@ -794,8 +778,8 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                               final p = producto != null 
                                   ? producto.copyWith(
                                       nombre: nombreCtrl.text.trim(),
-                                      sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
-                                      tamano: categoria == 'Vaso' ? tamano : null,
+                                      sabor: null,
+                                      tamano: null,
                                       precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
                                       costoUnitario: producto.costoUnitario,
                                       codigoBarras: codigoCtrl.text.trim().isEmpty ? null : codigoCtrl.text.trim(),
@@ -803,7 +787,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                       stockActual: double.tryParse(stockCtrl.text) ?? 0,
                                       stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
                                       unidad: 'pzs',
-                                      categoria: categoria,
+                                      categoria: categoriaCtrl.text.trim().isNotEmpty ? categoriaCtrl.text.trim() : 'General',
                                       tipo: TipoInsumo.productoVenta,
                                       updatedAt: DateTime.now(),
                                       imagenPath: finalImagenPath,
@@ -814,14 +798,14 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                       sku: skuCtrl.text.trim().isEmpty ? null : skuCtrl.text.trim(),
                                       id: const Uuid().v4(),
                                       nombre: nombreCtrl.text.trim(),
-                                      sabor: saborCtrl.text.trim().isEmpty ? null : saborCtrl.text.trim(),
-                                      tamano: categoria == 'Vaso' ? tamano : null,
+                                      sabor: null,
+                                      tamano: null,
                                       precioVenta: double.tryParse(precioCtrl.text) ?? 0.0,
                                       costoUnitario: 0,
                                       stockActual: double.tryParse(stockCtrl.text) ?? 0,
                                       stockMinimo: double.tryParse(stockMinCtrl.text) ?? 1.0,
                                       unidad: 'pzs',
-                                      categoria: categoria,
+                                      categoria: categoriaCtrl.text.trim().isNotEmpty ? categoriaCtrl.text.trim() : 'General',
                                       tipo: TipoInsumo.productoVenta,
                                       updatedAt: DateTime.now(),
                                       imagenPath: finalImagenPath,
