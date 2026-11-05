@@ -491,15 +491,26 @@ class _CalendarioTurnosTabState extends State<CalendarioTurnosTab> {
         ],
       );
     } else {
-      final cols = ((ancho - 8) / (tamAvatar + 2)).floor().clamp(1, 8);
+      final cols = ((ancho - 8) / (tamAvatar + 4)).floor().clamp(1, 8);
       final capacidad = cols * 2;
       final todos = <Widget>[
-        for (final e in trabajan) _avatarDe(e, tamAvatar),
+        for (final e in trabajan)
+          Container(
+            padding: const EdgeInsets.all(1.5),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: const Color(0xFF16A34A), width: 2), // Verde (Trabaja)
+            ),
+            child: _avatarDe(e, tamAvatar - 3),
+          ),
         for (final par in ausentes)
           Container(
             padding: const EdgeInsets.all(1.5),
-            decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: par.$2.tipo.color, width: 2)),
-            child: _avatarDe(par.$1, tamAvatar - 4),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              border: Border.all(color: par.$2.tipo.color, width: 2), // Color de la ausencia (Vacaciones, permiso, etc.)
+            ),
+            child: _avatarDe(par.$1, tamAvatar - 3),
           ),
       ];
       final visibles = todos.length > capacidad ? todos.take(capacidad - 1).toList() : todos;
