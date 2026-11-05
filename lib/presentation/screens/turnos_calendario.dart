@@ -235,23 +235,44 @@ class _CalendarioTurnosTabState extends State<CalendarioTurnosTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 980),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _encabezado(context),
-                  const SizedBox(height: 10),
-                  _leyenda(context),
-                  const SizedBox(height: 12),
-                  _cuadricula(context),
-                  const SizedBox(height: 22),
-                  _listaDelMes(context),
-                ],
+          LayoutBuilder(builder: (context, c) {
+            final ancho = c.maxWidth >= 1000;
+            final calendario = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _encabezado(context),
+                const SizedBox(height: 10),
+                _leyenda(context),
+                const SizedBox(height: 12),
+                _cuadricula(context),
+              ],
+            );
+            if (ancho) {
+              return Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1700),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(flex: 5, child: calendario),
+                      const SizedBox(width: 24),
+                      Expanded(flex: 2, child: _listaDelMes(context)),
+                    ],
+                  ),
+                ),
+              );
+            }
+            return Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [calendario, const SizedBox(height: 22), _listaDelMes(context)],
+                ),
               ),
-            ),
-          ),
+            );
+          }),
         ],
       ),
     );
@@ -803,7 +824,7 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
     _tipo = a?.tipo ?? TipoAusencia.vacaciones;
     _userId = a?.userId ?? (widget.empleados.isNotEmpty ? widget.empleados.first.id : null);
     _desde = a?.fechaInicio ?? widget.fechaInicial;
-    _hasta = a?.fechaFin ?? widget.fechaInicial;
+    _hasta = a?.fechaFin ?? widget.fechaInicial.add(const Duration(days: 6));
     _notasCtrl.text = a?.notas ?? '';
   }
 
@@ -811,6 +832,44 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
   void dispose() {
     _notasCtrl.dispose();
     super.dispose();
+  }
+
+  Widget _campoFecha(String etiqueta, DateTime fecha, VoidCallback onTap) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: etiqueta,
+          prefixIcon: const Icon(Icons.event_rounded, size: 20),
+        ),
+        child: Text(DateFormat('d MMM yyyy', 'es_MX').format(fecha), overflow: TextOverflow.ellipsis),
+      ),
+    );
+  }
+
+  Future<void> _elegirFecha({required bool esDesde}) async {
+    final actual = esDesde ? _desde : _hasta;
+    final r = await showDatePicker(
+      context: context,
+      initialDate: actual,
+      firstDate: esDesde ? DateTime(DateTime.now().year - 1) : _desde,
+      lastDate: DateTime(DateTime.now().year + 2, 12, 31),
+    );
+    if (r == null) return;
+    setState(() {
+      if (esDesde) {
+        final span = _hasta.difference(_desde);
+        _desde = _dia(r);
+        if (_hasta.isBefore(_desde)) {
+          _hasta = _desde;
+        } else if (span.inDays >= 0) {
+          _hasta = _desde.add(span);
+        }
+      } else {
+        _hasta = _dia(r);
+      }
+    });
   }
 
   Future<void> _elegirRango() async {
@@ -926,7 +985,16 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
                     ),
                 ],
                 onChanged: (v) {
-                  if (v != null) setState(() => _tipo = v);
+                  if (v == null) return;
+                  setState(() {
+                    _tipo = v;
+                    final esPeriodo = v == TipoAusencia.vacaciones ||
+                        v == TipoAusencia.incapacidad ||
+                        v == TipoAusencia.permiso;
+                    if (widget.existente == null && esPeriodo && _desde == _hasta) {
+                      _hasta = _desde.add(const Duration(days: 6));
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 12),
@@ -968,14 +1036,46 @@ class _AusenciaDialogState extends State<_AusenciaDialog> {
                   onChanged: (v) => setState(() => _userId = v),
                 ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _elegirRango,
-                icon: const Icon(Icons.date_range_rounded),
-                label: Text(
-                  _desde == _hasta
-                      ? DateFormat('d MMM yyyy', 'es_MX').format(_desde)
-                      : '${DateFormat('d MMM', 'es_MX').format(_desde)} – ${DateFormat('d MMM yyyy', 'es_MX').format(_hasta)} ($dias días)',
-                ),
+              Text('Periodo', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: context.textMuted)),
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  Expanded(child: _campoFecha('Desde', _desde, () => _elegirFecha(esDesde: true))),
+                  const SizedBox(width: 10),
+                  Expanded(child: _campoFecha('Hasta', _hasta, () => _elegirFecha(esDesde: false))),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final n in const [1, 3, 5, 7, 10, 14, 15, 21, 30])
+                    ChoiceChip(
+                      label: Text(n == 1 ? '1 día' : '$n días'),
+                      selected: dias == n,
+                      visualDensity: VisualDensity.compact,
+                      onSelected: (_) => setState(() => _hasta = _desde.add(Duration(days: n - 1))),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _desde == _hasta
+                          ? DateFormat("EEEE d 'de' MMMM yyyy", 'es_MX').format(_desde)
+                          : 'Del ${DateFormat('d MMM', 'es_MX').format(_desde)} al ${DateFormat('d MMM yyyy', 'es_MX').format(_hasta)} · $dias días',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _elegirRango,
+                    icon: const Icon(Icons.date_range_rounded, size: 18),
+                    label: const Text('Calendario'),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
               TextField(

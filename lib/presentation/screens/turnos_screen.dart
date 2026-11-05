@@ -9,6 +9,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_loader.dart';
 import '../../core/widgets/app_toast.dart';
 import '../../core/widgets/indexed_stack_resume.dart';
+import '../../core/widgets/user_avatar.dart';
 import '../../domain/models/asistencia.dart';
 import '../../domain/models/ausencia.dart';
 import '../../domain/models/horario_empleado.dart';
@@ -21,6 +22,9 @@ const int kTurnosTabIndex = 8;
 
 /// Minutos de tolerancia antes de contar un retardo.
 const int kToleranciaRetardoMin = 10;
+
+/// Valor del selector de Horarios para editar el horario general del equipo.
+const String _kTodos = '__todos__';
 
 // ======================================================================
 // Utilidades de formato
@@ -278,29 +282,26 @@ class _MiTurnoTabState extends State<_MiTurnoTab> {
       child: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          Center(
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 640),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _relojCard(context, estado),
-                  const SizedBox(height: 14),
-                  if (turno != null && turno.fecha != hoy)
-                    _aviso(context,
-                        'Tienes un turno abierto desde el ${DateFormat('d MMM', 'es_MX').format(turno.fecha)}. Registra su salida.'),
-                  _bannerAusenciaHoy(context, hoy),
-                  _contadores(context, mostrado),
-                  const SizedBox(height: 14),
-                  _acciones(context, estado, turno),
-                  const SizedBox(height: 18),
-                  _lineaDeTiempo(context, mostrado),
-                  const SizedBox(height: 18),
-                  _proximasAusencias(context, hoy),
-                  _historial(context, horasSemana),
-                ],
-              ),
-            ),
+          _dosColumnas(
+            flexIzq: 4,
+            flexDer: 5,
+            izquierda: [
+              _relojCard(context, estado),
+              const SizedBox(height: 14),
+              if (turno != null && turno.fecha != hoy)
+                _aviso(context,
+                    'Tienes un turno abierto desde el ${DateFormat('d MMM', 'es_MX').format(turno.fecha)}. Registra su salida.'),
+              _bannerAusenciaHoy(context, hoy),
+              _contadores(context, mostrado),
+              const SizedBox(height: 14),
+              _acciones(context, estado, turno),
+            ],
+            derecha: [
+              _lineaDeTiempo(context, mostrado),
+              const SizedBox(height: 18),
+              _proximasAusencias(context, hoy),
+              _historial(context, horasSemana),
+            ],
           ),
         ],
       ),
@@ -777,7 +778,7 @@ class _EquipoTabState extends State<_EquipoTab> {
         children: [
           Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 760),
+              constraints: const BoxConstraints(maxWidth: 1600),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -811,7 +812,9 @@ class _EquipoTabState extends State<_EquipoTab> {
                       padding: const EdgeInsets.all(30),
                       child: Center(child: Text('No hay usuarios en tu empresa', style: TextStyle(color: context.textMuted))),
                     ),
-                  for (final e in _empleados) _empleadoTile(context, e, porUsuario[e.id] ?? [], hoy),
+                  _masonry([
+                    for (final e in _empleados) _empleadoTile(context, e, porUsuario[e.id] ?? [], hoy),
+                  ]),
                 ],
               ),
             ),
@@ -1266,6 +1269,23 @@ class _HorariosTabState extends State<_HorariosTab> {
   }
 
   Future<void> _seleccionar(String userId) async {
+    // Horario general: plantilla nueva (lunes a viernes) para aplicar a varias personas.
+    if (userId == _kTodos) {
+      setState(() {
+        _seleccionado = _kTodos;
+        _borrador = {
+          for (var d = 1; d <= 7; d++)
+            d: HorarioEmpleado(
+              userId: '',
+              diaSemana: d,
+              activo: d <= 5,
+              comidaMinutos: _config.comidaMinutosDefault,
+            ),
+        };
+        _cargandoHorario = false;
+      });
+      return;
+    }
     setState(() {
       _seleccionado = userId;
       _cargandoHorario = true;
@@ -1323,6 +1343,54 @@ class _HorariosTabState extends State<_HorariosTab> {
     AppToast.showInfo(context, 'Se copió ${base.horaEntrada} – ${base.horaSalida} a lunes–viernes');
   }
 
+  /// Aplica el horario general a las personas que elija el dueño.
+  Future<void> _aplicarAlEquipo() async {
+    List<HorarioEmpleado> existentes;
+    try {
+      existentes = await _repo.horarios();
+    } catch (e) {
+      if (mounted) AppToast.showError(context, e.toString().replaceAll('Exception: ', ''));
+      return;
+    }
+    final conHorario = existentes.where((h) => h.activo).map((h) => h.userId).toSet();
+    if (!mounted) return;
+
+    final ids = await showDialog<Set<String>>(
+      context: context,
+      builder: (_) => _AplicarEquipoDialog(empleados: _empleados, conHorario: conHorario),
+    );
+    if (ids == null || ids.isEmpty) return;
+
+    setState(() => _guardando = true);
+    try {
+      final filas = <HorarioEmpleado>[
+        for (final id in ids)
+          for (final h in _borrador.values)
+            HorarioEmpleado(
+              userId: id,
+              diaSemana: h.diaSemana,
+              horaEntrada: h.horaEntrada,
+              horaSalida: h.horaSalida,
+              comidaMinutos: h.comidaMinutos,
+              activo: h.activo,
+            ),
+      ];
+      await _repo.guardarHorarios('', filas);
+      if (mounted) {
+        AppToast.showSuccess(
+          context,
+          'Horario aplicado a ${ids.length} ${ids.length == 1 ? 'persona' : 'personas'}',
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        AppToast.showError(context, e.toString().replaceAll('Exception: ', ''), title: 'No se pudo aplicar');
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
   Future<void> _guardar() async {
     final id = _seleccionado;
     if (id == null) return;
@@ -1331,6 +1399,10 @@ class _HorariosTabState extends State<_HorariosTab> {
         AppToast.showWarning(context, 'La salida del ${h.nombreDia} debe ser después de la entrada.');
         return;
       }
+    }
+    if (id == _kTodos) {
+      await _aplicarAlEquipo();
+      return;
     }
     setState(() => _guardando = true);
     try {
@@ -1351,22 +1423,24 @@ class _HorariosTabState extends State<_HorariosTab> {
       return Center(child: Text('No hay usuarios en tu empresa', style: TextStyle(color: context.textMuted)));
     }
 
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 680),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
+    final selector = <Widget>[
                 _reglasDelNegocio(context),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _seleccionado,
                   isExpanded: true,
-                  decoration: const InputDecoration(labelText: 'Empleado', prefixIcon: Icon(Icons.person_rounded)),
+                  decoration: const InputDecoration(labelText: 'Horario de', prefixIcon: Icon(Icons.person_rounded)),
                   items: [
+                    const DropdownMenuItem(
+                      value: _kTodos,
+                      child: Row(children: [
+                        Icon(Icons.groups_rounded, size: 18),
+                        SizedBox(width: 10),
+                        Flexible(
+                          child: Text('Todo el equipo (horario general)', overflow: TextOverflow.ellipsis),
+                        ),
+                      ]),
+                    ),
                     for (final e in _empleados)
                       DropdownMenuItem(value: e.id, child: Text('${e.nombre} · ${Permiso.etiquetaRol(e.rol)}')),
                   ],
@@ -1374,34 +1448,55 @@ class _HorariosTabState extends State<_HorariosTab> {
                     if (v != null) _seleccionar(v);
                   },
                 ),
-                const SizedBox(height: 14),
-                if (_cargandoHorario)
-                  const Padding(padding: EdgeInsets.all(30), child: AppLoader(size: 48))
-                else ...[
-                  for (var d = 1; d <= 7; d++) _filaDia(context, _borrador[d]!),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _aplicarALunesAViernes,
-                        icon: const Icon(Icons.copy_all_rounded, size: 18),
-                        label: const Text('Copiar a lunes–viernes'),
-                      ),
-                      FilledButton.icon(
-                        onPressed: _guardando ? null : _guardar,
-                        icon: _guardando
-                            ? const AppSpinner(size: 18, color: Colors.white)
-                            : const Icon(Icons.save_rounded, size: 18),
-                        label: const Text('Guardar horario'),
-                      ),
-                    ],
+                if (_seleccionado == _kTodos)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(
+                      'Arma el horario una vez y elige a quién se aplica. Después puedes ajustar a cada persona por separado.',
+                      style: TextStyle(fontSize: 12.5, color: context.textMuted, height: 1.4),
+                    ),
                   ),
-                ],
-              ],
+                const SizedBox(height: 14),
+    ];
+
+    final dias = <Widget>[
+      if (_cargandoHorario)
+        const Padding(padding: EdgeInsets.all(30), child: AppLoader(size: 48))
+      else
+        for (var d = 1; d <= 7; d++) _filaDia(context, _borrador[d]!),
+    ];
+
+    final botones = <Widget>[
+      if (!_cargandoHorario)
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          children: [
+            OutlinedButton.icon(
+              onPressed: _aplicarALunesAViernes,
+              icon: const Icon(Icons.copy_all_rounded, size: 18),
+              label: const Text('Copiar a lunes–viernes'),
             ),
-          ),
+            FilledButton.icon(
+              onPressed: _guardando ? null : _guardar,
+              icon: _guardando
+                  ? const AppSpinner(size: 18, color: Colors.white)
+                  : const Icon(Icons.save_rounded, size: 18),
+              label: Text(_seleccionado == _kTodos ? 'Aplicar al equipo…' : 'Guardar horario'),
+            ),
+          ],
+        ),
+    ];
+
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _dosColumnas(
+          izquierda: [...selector, ...botones],
+          derecha: dias,
+          angosto: [...selector, ...dias, const SizedBox(height: 8), ...botones],
+          flexIzq: 2,
+          flexDer: 3,
         ),
       ],
     );
@@ -1582,4 +1677,162 @@ class _ErrorView extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Elige a quién se aplica el horario general.
+class _AplicarEquipoDialog extends StatefulWidget {
+  final List<EmpleadoResumen> empleados;
+  final Set<String> conHorario;
+
+  const _AplicarEquipoDialog({required this.empleados, required this.conHorario});
+
+  @override
+  State<_AplicarEquipoDialog> createState() => _AplicarEquipoDialogState();
+}
+
+class _AplicarEquipoDialogState extends State<_AplicarEquipoDialog> {
+  bool _reemplazar = false;
+  late Set<String> _sel;
+
+  @override
+  void initState() {
+    super.initState();
+    // Por defecto: solo quienes todavía no tienen horario.
+    _sel = widget.empleados
+        .where((e) => !widget.conHorario.contains(e.id))
+        .map((e) => e.id)
+        .toSet();
+  }
+
+  void _cambiarReemplazar(bool v) {
+    setState(() {
+      _reemplazar = v;
+      if (v) {
+        _sel = widget.empleados.map((e) => e.id).toSet();
+      } else {
+        _sel.removeWhere(widget.conHorario.contains);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Aplicar horario al equipo'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Reemplazar horarios existentes'),
+                subtitle: const Text(
+                  'Apagado: solo se aplica a quien aún no tiene horario.',
+                  style: TextStyle(fontSize: 12),
+                ),
+                value: _reemplazar,
+                onChanged: _cambiarReemplazar,
+              ),
+              const Divider(),
+              for (final e in widget.empleados)
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: _sel.contains(e.id),
+                  onChanged: (!_reemplazar && widget.conHorario.contains(e.id))
+                      ? null
+                      : (v) => setState(() => v == true ? _sel.add(e.id) : _sel.remove(e.id)),
+                  secondary: UserAvatar(
+                    style: e.avatarStyle,
+                    seed: e.avatarSeed ?? '',
+                    name: e.nombre,
+                    size: 34,
+                    png: e.avatarPng,
+                  ),
+                  title: Text(e.nombre, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: Text(
+                    '${Permiso.etiquetaRol(e.rol)} · ${widget.conHorario.contains(e.id) ? 'ya tiene horario' : 'sin horario'}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+        FilledButton(
+          onPressed: _sel.isEmpty ? null : () => Navigator.pop(context, _sel),
+          child: Text('Aplicar a ${_sel.length}'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dos columnas cuando hay ancho; una sola (centrada) en pantallas angostas.
+Widget _dosColumnas({
+  required List<Widget> izquierda,
+  required List<Widget> derecha,
+  List<Widget>? angosto,
+  int flexIzq = 1,
+  int flexDer = 1,
+}) {
+  return LayoutBuilder(builder: (context, c) {
+    if (c.maxWidth >= 900) {
+      return Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 1600),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: flexIzq,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: izquierda),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                flex: flexDer,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: derecha),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 680),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: angosto ?? [...izquierda, const SizedBox(height: 18), ...derecha],
+        ),
+      ),
+    );
+  });
+}
+
+/// Reparte tarjetas en 1, 2 o 3 columnas segun el ancho disponible.
+Widget _masonry(List<Widget> items) {
+  return LayoutBuilder(builder: (context, c) {
+    final cols = c.maxWidth >= 1200 ? 3 : (c.maxWidth >= 760 ? 2 : 1);
+    if (cols == 1) {
+      return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: items);
+    }
+    final columnas = List.generate(cols, (_) => <Widget>[]);
+    for (var i = 0; i < items.length; i++) {
+      columnas[i % cols].add(items[i]);
+    }
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < cols; i++) ...[
+          if (i > 0) const SizedBox(width: 14),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: columnas[i])),
+        ],
+      ],
+    );
+  });
 }
