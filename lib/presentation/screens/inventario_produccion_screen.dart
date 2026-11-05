@@ -51,7 +51,6 @@ class _InventarioProduccionScreenState
   @override
   void initState() {
     super.initState();
-    _cargarCamposPersonalizados();
     context.read<InventarioBloc>().add(LoadInventario());
     activeTabNotifier.addListener(_onTabChange);
   }

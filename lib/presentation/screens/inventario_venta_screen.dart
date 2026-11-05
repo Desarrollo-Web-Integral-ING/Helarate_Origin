@@ -60,7 +60,6 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   @override
   void initState() {
     super.initState();
-    _cargarCamposPersonalizados();
     context.read<InventarioBloc>().add(LoadInventario());
     activeTabNotifier.addListener(_onTabChange);
   }
