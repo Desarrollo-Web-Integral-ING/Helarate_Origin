@@ -1,4 +1,4 @@
-class UsuarioPerfil {
+﻿class UsuarioPerfil {
   final String id;
   final String nombre;
   final String rol; // 'dueño' o 'empleado'
@@ -29,7 +29,7 @@ class UsuarioPerfil {
         ? avatarSeed!.trim()
         : (nombre.isNotEmpty ? nombre : id);
     final encoded = Uri.encodeComponent(seed);
-    return 'https://api.dicebear.com/7.x/$avatarStyle/png?seed=$encoded&backgroundColor=e2e8f0,cbd5e1,bbf7d0,bfdbfe';
+    return 'https://api.dicebear.com/9.x/$avatarStyle/png?seed=$encoded&backgroundColor=e2e8f0,cbd5e1,bbf7d0,bfdbfe';
   }
 
   UsuarioPerfil copyWith({

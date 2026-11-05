@@ -1,4 +1,5 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:convert';
+import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import '../../domain/models/insumo.dart';
@@ -139,18 +140,81 @@ class _DashboardScreenState extends State<DashboardScreen> {
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(14),
-                    ),
-                    child: Icon(
-                      authState is Authenticated ? BusinessIconHelper.getIcon(authState.tenant?.logoIcon) : Icons.storefront_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
+                  Builder(
+                    builder: (context) {
+                      final isMobile = MediaQuery.of(context).size.width < 800;
+                      final user = authState is Authenticated ? authState.usuario : null;
+                      final tenant = authState is Authenticated ? authState.tenant : null;
+                      
+                      if (isMobile && user != null) {
+                        return GestureDetector(
+                          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const PerfilScreen())),
+                          child: Container(
+                            width: 44,
+                            height: 44,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [
+                                BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Image.network(
+                                user.avatarUrl,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => CircleAvatar(
+                                  backgroundColor: Colors.white.withValues(alpha: 0.3),
+                                  child: Text(
+                                    user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : 'U',
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      if (tenant?.logoUrl != null && tenant!.logoUrl!.isNotEmpty) {
+                        return Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1.5),
+                          ),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(10),
+                            child: Image.memory(
+                              base64Decode(tenant.logoUrl!.contains(',') ? tenant.logoUrl!.split(',').last : tenant.logoUrl!),
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                BusinessIconHelper.getIcon(tenant.logoIcon),
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+                      
+                      return Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Icon(
+                          BusinessIconHelper.getIcon(tenant?.logoIcon),
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      );
+                    },
+                  )
                   const SizedBox(width: 12),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
