@@ -1,4 +1,4 @@
-name: Flutter CI
+﻿name: Flutter CI
 
 on:
   push:
@@ -27,7 +27,8 @@ jobs:
 
       - name: Create dummy .env for analysis
         run: |
-          echo "SUPABASE_URL=" > .env
+          touch .env .env.development .env.production
+          echo "SUPABASE_URL=" >> .env
           echo "SUPABASE_ANON_KEY=" >> .env
 
       - name: Install dependencies
