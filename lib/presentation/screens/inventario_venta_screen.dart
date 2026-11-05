@@ -1,3 +1,6 @@
+import '../../domain/models/campo_personalizado.dart';
+import '../../domain/repositories/campo_personalizado_repository.dart';
+import '../widgets/formulario_campos_dinamicos.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -24,6 +27,20 @@ class InventarioVentaScreen extends StatefulWidget {
 }
 
 class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
+  List<CampoPersonalizado> _camposPersonalizados = [];
+
+  Future<void> _cargarCamposPersonalizados() async {
+    try {
+      final repo = getIt<CampoPersonalizadoRepository>();
+      final list = await repo.getCampos();
+      if (mounted) {
+        setState(() {
+          _camposPersonalizados = list.where((c) => c.aplicaA == 'todos' || c.aplicaA == 'producto_venta').toList();
+        });
+      }
+    } catch (_) {}
+  }
+
   NumberFormat get _fmt => Money.of(context);
   List<Insumo> _items = [];
   String _busqueda = '';
@@ -36,6 +53,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
   @override
   void initState() {
     super.initState();
+    _cargarCamposPersonalizados();
     activeTabNotifier.addListener(_onTabChange);
   }
 
@@ -526,6 +544,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
     PickedImageData? selectedImage;
     bool isSaving = false;
     final formKey = GlobalKey<FormState>();
+    final Map<String, dynamic> atributosMap = Map<String, dynamic>.from(producto?.atributos ?? {});
 
     showModalBottomSheet(
       context: context,
@@ -739,6 +758,11 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                       ),
                     ),
                   ]),
+                  FormularioCamposDinamicos(
+                    campos: _camposPersonalizados,
+                    valores: atributosMap,
+                    onValorChanged: (k, v) => atributosMap[k] = v,
+                  ),
                   const SizedBox(height: 20),
                   SizedBox(
                     width: double.infinity,
@@ -782,6 +806,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                       tipo: TipoInsumo.productoVenta,
                                       updatedAt: DateTime.now(),
                                       imagenPath: finalImagenPath,
+                                      atributos: atributosMap,
                                     )
                                   : Insumo(
                                       codigoBarras: codigoCtrl.text.trim().isEmpty ? null : codigoCtrl.text.trim(),
@@ -799,6 +824,7 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                                       tipo: TipoInsumo.productoVenta,
                                       updatedAt: DateTime.now(),
                                       imagenPath: finalImagenPath,
+                                      atributos: atributosMap,
                                     );
 
                               if (isEdit) {

@@ -1,3 +1,6 @@
+import '../../domain/models/campo_personalizado.dart';
+import '../../domain/repositories/campo_personalizado_repository.dart';
+import '../widgets/formulario_campos_dinamicos.dart';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -38,6 +41,7 @@ class _InventarioProduccionScreenState
   @override
   void initState() {
     super.initState();
+    _cargarCamposPersonalizados();
     activeTabNotifier.addListener(_onTabChange);
   }
 
@@ -500,6 +504,7 @@ class _InventarioProduccionScreenState
     PickedImageData? selectedImage;
     bool isSaving = false;
     final formKey = GlobalKey<FormState>();
+    final Map<String, dynamic> atributosMap = Map<String, dynamic>.from(insumo?.atributos ?? {});
 
     showModalBottomSheet(
       context: context,

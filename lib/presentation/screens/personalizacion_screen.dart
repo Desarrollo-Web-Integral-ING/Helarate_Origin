@@ -1,3 +1,4 @@
+import 'campos_personalizados_screen.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
@@ -180,6 +181,53 @@ class _PersonalizacionScreenState extends State<PersonalizacionScreen> {
 
                 // Datos Comerciales
                 _buildCompanyDetailsCard(brandColor),
+          const SizedBox(height: 20),
+          HeroCard(
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: brandColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Icon(Icons.tune_rounded, color: brandColor, size: 28),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Campos Personalizados del Inventario',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Crea atributos propios para tus productos (Marca, Talla, Proveedor, etc.)',
+                        style: TextStyle(fontSize: 12, color: context.textMuted),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: brandColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+                  label: const Text('Gestionar'),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CamposPersonalizadosScreen()),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
                 const SizedBox(height: 32),
 
                 // Botón Guardar Flotante de Alto Impacto

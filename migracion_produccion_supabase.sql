@@ -371,3 +371,33 @@ CREATE TRIGGER on_auth_user_created
 -- 16. RECARGAR CACHÉ DE POSTGREST
 NOTIFY pgrst, 'reload schema';
 
+
+
+-- 10. MODULO DE CAMPOS PERSONALIZADOS PARA INVENTARIO
+CREATE TABLE IF NOT EXISTS public.campos_personalizados (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id UUID REFERENCES public.tenants(id) ON DELETE CASCADE,
+    nombre TEXT NOT NULL,
+    tipo_dato TEXT NOT NULL DEFAULT 'texto',
+    opciones JSONB DEFAULT '[]'::jsonb,
+    obligatorio BOOLEAN NOT NULL DEFAULT false,
+    aplica_a TEXT NOT NULL DEFAULT 'todos',
+    orden INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- Asegurar columna atributos (JSONB) en la tabla insumos para soportar campos libres
+ALTER TABLE public.insumos ADD COLUMN IF NOT EXISTS atributos JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE public.campos_personalizados ENABLE ROW LEVEL SECURITY;
+
+DO \$\$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies WHERE tablename = 'campos_personalizados' AND policyname = 'campos_personalizados_tenant_isolation'
+    ) THEN
+        CREATE POLICY campos_personalizados_tenant_isolation ON public.campos_personalizados
+            FOR ALL USING (
+                tenant_id = (SELECT tenant_id FROM public.profiles WHERE id = auth.uid())
+            );
+    END IF;
+END \$\$;

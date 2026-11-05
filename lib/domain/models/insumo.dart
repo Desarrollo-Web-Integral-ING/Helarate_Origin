@@ -22,6 +22,7 @@ class Insumo {
   final String? tenantId;
   final DateTime updatedAt;
   final String? imagenPath;
+  final Map<String, dynamic> atributos;
 
   Insumo({
     required this.id,
@@ -42,6 +43,7 @@ class Insumo {
     this.tenantId,
     required this.updatedAt,
     this.imagenPath,
+    this.atributos = const {},
   });
 
   Insumo copyWith({
@@ -63,6 +65,7 @@ class Insumo {
     String? tenantId,
     DateTime? updatedAt,
     String? imagenPath,
+    Map<String, dynamic>? atributos,
   }) {
     return Insumo(
       id: id ?? this.id,
@@ -83,6 +86,7 @@ class Insumo {
       tenantId: tenantId ?? this.tenantId,
       updatedAt: updatedAt ?? this.updatedAt,
       imagenPath: imagenPath ?? this.imagenPath,
+      atributos: atributos ?? this.atributos,
     );
   }
 
@@ -107,6 +111,7 @@ class Insumo {
         'tenant_id': tenantId,
         'updated_at': updatedAt.toIso8601String(),
         'imagen_path': imagenPath,
+        'atributos': atributos,
       };
 
   factory Insumo.fromJson(Map<String, dynamic> json) {
@@ -134,6 +139,7 @@ class Insumo {
       tenantId: json['tenant_id'] as String?,
       updatedAt: DateTime.parse(json['updated_at'] as String),
       imagenPath: json['imagen_path'] as String?,
+      atributos: json['atributos'] is Map ? Map<String, dynamic>.from(json['atributos'] as Map) : {},
     );
   }
 }

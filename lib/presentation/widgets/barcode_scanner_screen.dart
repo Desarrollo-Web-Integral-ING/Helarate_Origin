@@ -361,3 +361,4 @@ class ScannerOverlayPainter extends CustomPainter {
         oldDelegate.borderRadius != borderRadius;
   }
 }
+
