@@ -680,7 +680,10 @@ class _InventarioVentaScreenState extends State<InventarioVentaScreen> {
                       flex: 2,
                       child: TextFormField(
                         controller: skuCtrl,
-                        decoration: const InputDecoration(labelText: 'SKU (opcional)'),
+                        decoration: const InputDecoration(
+                          labelText: 'Código interno (opcional)',
+                          hintText: 'Ej. JUG-01, ART-102',
+                        ),
                       ),
                     ),
                   ]),
