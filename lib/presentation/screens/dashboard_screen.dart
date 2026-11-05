@@ -1,3 +1,4 @@
+import '../../core/widgets/avatar_image.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
@@ -178,20 +179,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
                               ],
                             ),
-                            child: ClipOval(
-                              child: Image.network(
-                                user.avatarUrl,
-                                width: 44,
-                                height: 44,
-                                fit: BoxFit.cover,
-                                errorBuilder: (_, __, ___) => CircleAvatar(
-                                  backgroundColor: Colors.white.withValues(alpha: 0.3),
-                                  child: Text(
-                                    user.nombre.isNotEmpty ? user.nombre[0].toUpperCase() : 'U',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ),
+                            child: AppAvatarImage(
+                              url: user.avatarUrl,
+                              size: 44,
+                              fallbackInitial: user.nombre,
+                              backgroundColor: Colors.white.withValues(alpha: 0.3),
                             ),
                           ),
                         );

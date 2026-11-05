@@ -1,3 +1,4 @@
+import '../../core/widgets/avatar_image.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -325,25 +326,11 @@ class WebSidebar extends StatelessWidget {
                   border: Border.all(
                       color: brandColor.withValues(alpha: 0.5), width: 1.5),
                 ),
-                child: ClipOval(
-                  child: Image.network(
-                    user.avatarUrl,
-                    width: 40,
-                    height: 40,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => CircleAvatar(
-                      radius: 20,
-                      backgroundColor: brandColor,
-                      child: Text(
-                        initials,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
+                child: AppAvatarImage(
+                  url: user.avatarUrl,
+                  size: 40,
+                  fallbackInitial: initials,
+                  backgroundColor: brandColor,
                 ),
               ),
               if (!isCollapsed) ...[

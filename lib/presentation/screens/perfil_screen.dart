@@ -1,3 +1,4 @@
+import '../../core/widgets/avatar_image.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
@@ -327,24 +328,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   ],
                 ),
               ),
-              ClipOval(
-                child: Image.network(
-                  perfil.avatarUrl,
-                  width: 90,
-                  height: 90,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => Container(
-                    width: 90,
-                    height: 90,
-                    color: brandColor,
-                    child: Center(
-                      child: Text(
-                        perfil.nombre.isNotEmpty ? perfil.nombre[0].toUpperCase() : 'U',
-                        style: const TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                ),
+              AppAvatarImage(
+                url: perfil.avatarUrl,
+                size: 90,
+                fallbackInitial: perfil.nombre,
+                backgroundColor: brandColor,
               ),
             ],
           ),
@@ -510,11 +498,11 @@ class _PerfilScreenState extends State<PerfilScreen> {
                       children: [
                         ClipRRect(
                           borderRadius: BorderRadius.circular(12),
-                          child: Image.network(
-                            demoUrl,
-                            width: 52,
-                            height: 52,
-                            fit: BoxFit.cover,
+                          child: AppAvatarImage(
+                            url: demoUrl,
+                            size: 52,
+                            fallbackInitial: perfil.nombre,
+                            backgroundColor: Colors.blueAccent,
                           ),
                         ),
                         const SizedBox(height: 6),
