@@ -1,3 +1,4 @@
+﻿import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nevero_app/domain/models/tenant_model.dart';
 import 'package:nevero_app/domain/models/usuario_perfil.dart';
@@ -79,10 +80,12 @@ class FakeAuthRepository implements AuthRepository {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late FakeAuthRepository fakeAuthRepository;
   late AuthBloc authBloc;
 
   setUp(() {
+    SharedPreferences.setMockInitialValues({});
     fakeAuthRepository = FakeAuthRepository();
     authBloc = AuthBloc(authRepository: fakeAuthRepository);
   });
