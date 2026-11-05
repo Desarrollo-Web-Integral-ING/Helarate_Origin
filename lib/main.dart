@@ -43,7 +43,7 @@ void main() async {
   try {
     await dotenv.load(fileName: '.env');
   } catch (e) {
-    debugPrint('Nota: .env no cargado (\)');
+    debugPrint('Nota: .env no cargado: \');
   }
 
   final supabaseUrl = dotenv.env['SUPABASE_URL'] ?? '';

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -7,6 +7,13 @@ import '../../core/widgets/app_toast.dart';
 import '../blocs/auth/auth_bloc.dart';
 import '../blocs/auth/auth_event.dart';
 import '../../main.dart';
+import '../blocs/dashboard/dashboard_bloc.dart';
+import '../blocs/dashboard/dashboard_event.dart';
+import '../blocs/inventario/inventario_bloc.dart';
+import '../blocs/inventario/inventario_event.dart';
+import '../blocs/venta/venta_bloc.dart';
+import '../blocs/venta/venta_event.dart';
+import '../../domain/models/tenant_model.dart';
 
 class SuperAdminScreen extends StatefulWidget {
   const SuperAdminScreen({super.key});
@@ -79,15 +86,28 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
   Future<void> _impersonateTenant(String tenantId, String tenantNombre) async {
     try {
       final userId = _client.auth.currentUser!.id;
-      // Actualizamos nuestro propio perfil para que apunte al tenant seleccionado
       await _client.from('profiles').update({'tenant_id': tenantId}).eq('id', userId);
       
+      // Obtener datos del tenant seleccionado
+      final tenantData = await _client.from('tenants').select().eq('id', tenantId).maybeSingle();
+      if (tenantData != null && mounted) {
+        final tenantModel = TenantModel.fromJson(tenantData);
+        context.read<AuthBloc>().add(TenantUpdated(tenantModel));
+      }
+      
+      // Recargar datos de insumos, ventas y dashboard para el tenant seleccionado
       if (mounted) {
-        AppToast.showSuccess(context, 'Ingresando a $tenantNombre');
+        context.read<DashboardBloc>().add(LoadDashboardEvent());
+        context.read<InventarioBloc>().add(LoadInventario());
+        context.read<VentaBloc>().add(LoadVentasEvent());
+      }
+      
+      if (mounted) {
+        AppToast.showSuccess(context, 'Ingresando a ' + tenantNombre);
         Navigator.push(context, MaterialPageRoute(builder: (_) => const MainNavigation()));
       }
     } catch (e) {
-      if (mounted) AppToast.showError(context, 'Error al cambiar de tenant');
+      if (mounted) AppToast.showError(context, 'Error al cambiar de tenant: ' + e.toString());
     }
   }
 
