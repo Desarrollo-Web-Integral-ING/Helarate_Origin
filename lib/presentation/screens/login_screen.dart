@@ -404,10 +404,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   Widget _buildAvatarStack(bool isDark) {
     final urls = [
-      'https://api.dicebear.com/9.x/notionists/png?seed=Alex&backgroundColor=bfdbfe',
-      'https://api.dicebear.com/9.x/notionists/png?seed=Sarah&backgroundColor=bbf7d0',
-      'https://api.dicebear.com/9.x/notionists/png?seed=David&backgroundColor=fef08a',
-      'https://api.dicebear.com/9.x/notionists/png?seed=Maria&backgroundColor=fbcfe8',
+      'https://api.dicebear.com/7.x/notionists/png?seed=Alex&backgroundColor=bfdbfe',
+      'https://api.dicebear.com/7.x/notionists/png?seed=Sarah&backgroundColor=bbf7d0',
+      'https://api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=fef08a',
+      'https://api.dicebear.com/7.x/notionists/png?seed=Maria&backgroundColor=fbcfe8',
     ];
 
     return SizedBox(

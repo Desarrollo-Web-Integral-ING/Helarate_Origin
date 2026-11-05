@@ -489,7 +489,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
               itemBuilder: (context, idx) {
                 final style = _avatarStyles[idx];
                 final isSelected = perfil.avatarStyle == style['id'];
-                final demoUrl = 'https://api.dicebear.com/9.x/${style['id']}/png?seed=${perfil.nombre}&backgroundColor=e2e8f0';
+                final demoUrl = 'https://api.dicebear.com/7.x/${style['id']}/png?seed=${perfil.nombre}&backgroundColor=e2e8f0';
 
                 return GestureDetector(
                   onTap: () => _cambiarAvatarDiceBear(style['id']!, perfil.nombre),

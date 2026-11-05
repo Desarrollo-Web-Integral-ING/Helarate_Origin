@@ -1,3 +1,4 @@
+import '../widgets/barcode_scanner_screen.dart';
 ﻿import 'package:image_picker/image_picker.dart';
 import 'dart:io' as io;
 import 'package:flutter/foundation.dart';
@@ -208,66 +209,26 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
 
   /// Deja el cursor en el campo de escaneo (si la terminal lo tiene activado).
   void _focusScanner() {
-    if (_hw.scannerEnabled && _hw.scannerFocusOnOpen) {
+    // En celular no auto-enfocar para no abrir el teclado sobre los productos
+    final isMobile = MediaQuery.of(context).size.width < 700;
+    if (!isMobile && _hw.scannerEnabled && _hw.scannerFocusOnOpen) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _busquedaFocus.requestFocus();
       });
     }
   }
 
-  Future<void> _abrirCamaraEscaner() async {
-    try {
-      final picker = ImagePicker();
-      final file = await picker.pickImage(source: ImageSource.camera);
-      if (file == null) return;
-      final codeCtrl = TextEditingController();
-      if (!mounted) return;
-      showDialog(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Row(
-            children: [
-              Icon(Icons.camera_alt_rounded, color: Colors.blue),
-              SizedBox(width: 8),
-              Text('Escanear con Cmara'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text('Foto capturada con xito. Ingresa o confirma el cdigo de barras detectado:'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: codeCtrl,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Cdigo de Barras / QR',
-                  prefixIcon: Icon(Icons.qr_code_scanner_rounded),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancelar'),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final code = codeCtrl.text.trim();
-                Navigator.pop(ctx);
-                if (code.isNotEmpty) {
-                  _procesarCodigoEscaneado(code);
-                }
-              },
-              child: const Text('Buscar y Agregar'),
-            ),
-          ],
+  void _abrirCamaraEscaner() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => BarcodeScannerScreen(
+          onScanned: (code) {
+            _procesarCodigoEscaneado(code);
+          },
         ),
-      );
-    } catch (e) {
-      AppToast.showError(context, 'No se pudo abrir la cmara: ' + e.toString());
-    }
+      ),
+    );
   }
 
   void _procesarCodigoEscaneado(String code) {
