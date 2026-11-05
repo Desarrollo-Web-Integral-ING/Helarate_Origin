@@ -402,30 +402,48 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   Widget _buildAvatarStack(bool isDark) {
-    final urls = [
-      'https://images.weserv.nl/?url=api.dicebear.com/7.x/notionists/png?seed=Alex&backgroundColor=bfdbfe',
-      'https://images.weserv.nl/?url=api.dicebear.com/7.x/notionists/png?seed=Sarah&backgroundColor=bbf7d0',
-      'https://images.weserv.nl/?url=api.dicebear.com/7.x/notionists/png?seed=David&backgroundColor=fef08a',
-      'https://images.weserv.nl/?url=api.dicebear.com/7.x/notionists/png?seed=Maria&backgroundColor=fbcfe8',
+    final avatarData = [
+      {'initial': 'A', 'bg': const Color(0xFF3B82F6), 'icon': Icons.person_rounded},
+      {'initial': 'S', 'bg': const Color(0xFF10B981), 'icon': Icons.storefront_rounded},
+      {'initial': 'D', 'bg': const Color(0xFFF59E0B), 'icon': Icons.shopping_bag_rounded},
+      {'initial': 'M', 'bg': const Color(0xFFEC4899), 'icon': Icons.local_florist_rounded},
     ];
 
     return SizedBox(
       height: 36,
       width: 110,
       child: Stack(
-        children: List.generate(urls.length, (idx) {
+        children: List.generate(avatarData.length, (idx) {
+          final item = avatarData[idx];
           return Positioned(
             left: idx * 24.0,
             child: Container(
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
+                color: item['bg'] as Color,
                 border: Border.all(
                   color: isDark ? const Color(0xFF090D16) : Colors.white,
                   width: 2,
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
-              child: ClipOval(
-                child: Image.network(urls[idx], width: 32, height: 32, fit: BoxFit.cover),
+              child: Center(
+                child: Text(
+                  item['initial'] as String,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
               ),
             ),
           );
