@@ -87,3 +87,4 @@ class SupabaseCampoPersonalizadoRepository implements CampoPersonalizadoReposito
     }
   }
 }
+

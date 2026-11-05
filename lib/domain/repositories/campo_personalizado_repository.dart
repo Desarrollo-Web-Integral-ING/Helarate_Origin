@@ -5,3 +5,4 @@ abstract class CampoPersonalizadoRepository {
   Future<void> saveCampo(CampoPersonalizado campo);
   Future<void> deleteCampo(String id);
 }
+
