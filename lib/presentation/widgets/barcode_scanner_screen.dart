@@ -22,11 +22,11 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
   @override
   void initState() {
     super.initState();
-    // autoStart: true por defecto permite a MobileScanner solicitar permisos
-    // nativamente tanto en Web (getUserMedia) como en Mobile (Android / iOS)
+    // En Web en laptops o desktops no existe CameraFacing.back y causa genericError.
+    // Solo forzamos CameraFacing.back en plataformas móviles reales.
     _controller = MobileScannerController(
       detectionSpeed: DetectionSpeed.noDuplicates,
-      facing: CameraFacing.back,
+      facing: kIsWeb ? null : CameraFacing.back,
       torchEnabled: false,
     );
 
@@ -93,7 +93,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                         ),
                         const SizedBox(height: 12),
                         Text(
-                          'No se pudo acceder a la cámara. Por favor autoriza el permiso en el navegador o ajustes de tu dispositivo.\n(${error.errorCode.name})',
+                          'No se pudo acceder a la cámara. Por favor autoriza el permiso en el navegador o ajustes de tu dispositivo.\n(${error.errorCode.name}${error.errorDetails?.message != null ? ': ' + error.errorDetails!.message! : ''})',
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
