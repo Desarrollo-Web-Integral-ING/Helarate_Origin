@@ -8,14 +8,16 @@ class SupabaseCampoPersonalizadoRepository implements CampoPersonalizadoReposito
   final _client = Supabase.instance.client;
   static const String _localKeyPrefix = 'campos_personalizados_';
 
-  String? get _currentTenantId {
-    final user = _client.auth.currentUser;
-    return user?.userMetadata?['tenant_id'] as String?;
+  Future<String?> _getTenantId() async {
+    final userId = _client.auth.currentUser?.id;
+    if (userId == null) return null;
+    final res = await _client.from('profiles').select('tenant_id').eq('id', userId).maybeSingle();
+    return res?['tenant_id'] as String?;
   }
 
   @override
   Future<List<CampoPersonalizado>> getCampos() async {
-    final tenantId = _currentTenantId ?? 'default';
+    final tenantId = (await _getTenantId()) ?? 'default';
     
     // 1. Intentar desde Supabase
     try {
@@ -35,7 +37,8 @@ class SupabaseCampoPersonalizadoRepository implements CampoPersonalizadoReposito
 
   @override
   Future<void> saveCampo(CampoPersonalizado campo) async {
-    final tenantId = campo.tenantId.isNotEmpty ? campo.tenantId : (_currentTenantId ?? 'default');
+    final currentT = await _getTenantId();
+    final tenantId = (campo.tenantId.isNotEmpty && campo.tenantId != 'default') ? campo.tenantId : (currentT ?? 'default');
     final campoConTenant = campo.copyWith(tenantId: tenantId);
 
     // Guardar en Supabase si la tabla existe
@@ -56,7 +59,7 @@ class SupabaseCampoPersonalizadoRepository implements CampoPersonalizadoReposito
 
   @override
   Future<void> deleteCampo(String id) async {
-    final tenantId = _currentTenantId ?? 'default';
+    final tenantId = (await _getTenantId()) ?? 'default';
 
     try {
       await _client.from('campos_personalizados').delete().eq('id', id);
