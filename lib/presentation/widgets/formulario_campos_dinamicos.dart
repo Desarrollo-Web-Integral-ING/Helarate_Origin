@@ -174,54 +174,90 @@ class FormularioCamposDinamicos extends StatelessWidget {
               );
 
             case TipoDatoCampo.codigoBarras:
-              final controller = TextEditingController(text: valorActual?.toString() ?? '');
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: controller,
-                        decoration: InputDecoration(
-                          labelText: '${campo.nombre}${campo.obligatorio ? " *" : ""}',
-                          hintText: 'Escanea o escribe el código',
-                          prefixIcon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
-                        ),
-                        validator: (v) {
-                          if (campo.obligatorio && (v == null || v.trim().isEmpty)) {
-                            return 'Este campo es obligatorio';
-                          }
-                          return null;
-                        },
-                        onChanged: (val) => onValorChanged(campo.nombre, val.trim()),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton.filledTonal(
-                      icon: const Icon(Icons.qr_code_scanner_rounded),
-                      tooltip: 'Escanear con cámara o lector',
-                      onPressed: () async {
-                        final code = await Navigator.push<String>(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => BarcodeScannerScreen(
-                              onScanned: (c) => Navigator.pop(context, c),
-                            ),
-                          ),
-                        );
-                        if (code != null && code.isNotEmpty) {
-                          controller.text = code;
-                          onValorChanged(campo.nombre, code);
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              );
-          }
+              return _CampoCodigoBarras(
+                key: ValueKey('cb_${campo.nombre}'),
+                campo: campo,
+                valorInicial: valorActual?.toString() ?? '',
+                onChanged: (v) => onValorChanged(campo.nombre, v),
+              );          }
         }),
       ],
     );
   }
 }
 
+
+/// Campo de código de barras/QR. Tiene su propio controlador, así que lo que se
+/// escanea se escribe en el campo sin reconstruir ni cerrar el formulario.
+class _CampoCodigoBarras extends StatefulWidget {
+  final CampoPersonalizado campo;
+  final String valorInicial;
+  final ValueChanged<String> onChanged;
+
+  const _CampoCodigoBarras({
+    super.key,
+    required this.campo,
+    required this.valorInicial,
+    required this.onChanged,
+  });
+
+  @override
+  State<_CampoCodigoBarras> createState() => _CampoCodigoBarrasState();
+}
+
+class _CampoCodigoBarrasState extends State<_CampoCodigoBarras> {
+  late final TextEditingController _ctrl =
+      TextEditingController(text: widget.valorInicial);
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _escanear() async {
+    // El escáner se cierra solo y devuelve el código; aquí NO se hace pop.
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const BarcodeScannerScreen()),
+    );
+    if (!mounted || code == null || code.isEmpty) return;
+    _ctrl.text = code;
+    _ctrl.selection = TextSelection.collapsed(offset: code.length);
+    widget.onChanged(code);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final campo = widget.campo;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextFormField(
+              controller: _ctrl,
+              decoration: InputDecoration(
+                labelText: '${campo.nombre}${campo.obligatorio ? " *" : ""}',
+                hintText: 'Escanea o escribe el código',
+                prefixIcon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+              ),
+              validator: (v) {
+                if (campo.obligatorio && (v == null || v.trim().isEmpty)) {
+                  return 'Este campo es obligatorio';
+                }
+                return null;
+              },
+              onChanged: (val) => widget.onChanged(val.trim()),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton.filledTonal(
+            icon: const Icon(Icons.photo_camera_rounded),
+            tooltip: 'Escanear con la cámara',
+            onPressed: _escanear,
+          ),
+        ],
+      ),
+    );
+  }
+}

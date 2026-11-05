@@ -242,7 +242,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
         _busquedaCtrl.text = code;
         _busqueda = code;
       });
-      AppToast.showWarning(context, 'Buscando productos con cdigo: ' + code);
+      AppToast.showWarning(context, 'Buscando productos con el código: ' + code);
     }
   }
 
@@ -433,7 +433,7 @@ class _VentasScreenState extends State<VentasScreen> with SingleTickerProviderSt
             onSubmitted: _onScanSubmit,
             decoration: InputDecoration(
               hintText: _hw.scannerEnabled ? 'Buscar o escanear código de barras / QR' : 'Buscar producto',
-              prefixIcon: IconButton(icon: const Icon(Icons.qr_code_scanner_rounded), tooltip: 'Escanear con cmara', onPressed: _abrirCamaraEscaner),
+              prefixIcon: IconButton(icon: const Icon(Icons.qr_code_scanner_rounded), tooltip: 'Escanear con la cámara', onPressed: _abrirCamaraEscaner),
               suffixIcon: _busqueda.isEmpty
                   ? null
                   : IconButton(

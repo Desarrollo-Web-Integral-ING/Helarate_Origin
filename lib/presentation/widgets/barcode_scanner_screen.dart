@@ -11,9 +11,11 @@ import '../../core/utils/camera_access_api.dart';
 /// navegador el aviso de permiso lo muestra el propio navegador al abrir la
 /// cámara (requiere HTTPS o localhost).
 class BarcodeScannerScreen extends StatefulWidget {
-  final void Function(String code) onScanned;
+  /// Opcional. La pantalla se cierra sola UNA vez al leer un código y devuelve
+  /// el valor con Navigator.pop, así que quien la abre no debe hacer pop.
+  final void Function(String code)? onScanned;
 
-  const BarcodeScannerScreen({super.key, required this.onScanned});
+  const BarcodeScannerScreen({super.key, this.onScanned});
 
   @override
   State<BarcodeScannerScreen> createState() => _BarcodeScannerScreenState();
@@ -118,6 +120,14 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
     super.dispose();
   }
 
+  /// Entrega el código y cierra SOLO el escáner (un único pop).
+  void _finish(String code) {
+    if (_hasScanned || !mounted) return;
+    _hasScanned = true;
+    widget.onScanned?.call(code);
+    Navigator.of(context).pop(code);
+  }
+
   Future<void> _manualEntry() async {
     final ctrl = TextEditingController();
     final code = await showDialog<String>(
@@ -143,11 +153,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
       ),
     );
     ctrl.dispose();
-    if (code != null && code.isNotEmpty && mounted) {
-      _hasScanned = true;
-      widget.onScanned(code);
-      Navigator.pop(context);
-    }
+    if (code != null && code.isNotEmpty) _finish(code);
   }
 
   /// Panel de problema con instrucciones claras y acciones.
@@ -419,12 +425,10 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             errorBuilder: (context, error) => _buildCameraError(error),
             onDetect: (BarcodeCapture capture) {
               if (_hasScanned) return;
-              final List<Barcode> barcodes = capture.barcodes;
-              for (final barcode in barcodes) {
-                if (barcode.rawValue != null && barcode.rawValue!.isNotEmpty) {
-                  _hasScanned = true;
-                  widget.onScanned(barcode.rawValue!);
-                  Navigator.pop(context);
+              for (final barcode in capture.barcodes) {
+                final value = barcode.rawValue;
+                if (value != null && value.isNotEmpty) {
+                  _finish(value);
                   break;
                 }
               }

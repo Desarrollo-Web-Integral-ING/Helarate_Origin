@@ -7,6 +7,7 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import '../widgets/barcode_scanner_screen.dart';
 import '../../core/widgets/app_loader.dart';
 import 'package:intl/intl.dart';
 import 'package:uuid/uuid.dart';
