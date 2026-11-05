@@ -61,7 +61,7 @@ jobs:
       - name: Build Flutter Web
         run: |
           flutter config --enable-web
-          flutter build web --release
+          flutter build web --release --web-renderer html
           cp vercel.json build/web/
 
       - name: Deploy to Vercel
