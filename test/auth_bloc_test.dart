@@ -1,4 +1,4 @@
-﻿import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nevero_app/domain/models/tenant_model.dart';
 import 'package:nevero_app/domain/models/usuario_perfil.dart';
@@ -30,7 +30,8 @@ class FakeAuthRepository implements AuthRepository {
   Future<TenantModel> updateTenant(TenantModel tenant) async => tenant;
 
   @override
-  Future<UsuarioPerfil> updateAvatar(String style, String seed) async =>
+  Future<UsuarioPerfil> updateAvatar(String style, String seed,
+          {String? pngBase64}) async =>
       mockUser!;
 
   @override

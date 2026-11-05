@@ -28,6 +28,7 @@ enum _CamState {
   browserDenied,
   noCamera,
   inUse,
+  policy,
   failed,
 }
 
@@ -86,6 +87,7 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
             CameraAccess.denied => _CamState.browserDenied,
             CameraAccess.noDevice => _CamState.noCamera,
             CameraAccess.inUse => _CamState.inUse,
+            CameraAccess.blockedByPolicy => _CamState.policy,
             CameraAccess.insecure => _CamState.insecure,
             _ => _CamState.failed,
           };
@@ -362,6 +364,19 @@ class _BarcodeScannerScreenState extends State<BarcodeScannerScreen>
                 'está usando la cámara. Ciérrala y pulsa Reintentar.',
             primaryLabel: 'Reintentar',
             onPrimary: _prepareCamera,
+            detail: _detail,
+          ),
+        );
+      case _CamState.policy:
+        return Scaffold(
+          backgroundColor: Colors.black,
+          body: _problemPanel(
+            icon: Icons.policy_outlined,
+            title: 'La configuración del sitio bloquea la cámara',
+            message: 'El servidor de esta página envía una regla (Permissions-Policy) que prohíbe usar la cámara, '
+                'por eso el navegador no muestra el aviso de permiso. '
+                'Hay que permitir camera=(self) en la cabecera del sitio y volver a publicar. '
+                'Mientras tanto puedes escribir el código o usar un lector USB/Bluetooth.',
             detail: _detail,
           ),
         );

@@ -18,8 +18,28 @@ Future<CameraAccessResult> requestBrowserCamera() async {
     );
   }
 
-  final devices = web.window.navigator.mediaDevices;
+  // ¿La cabecera Permissions-Policy del servidor prohíbe la cámara? En ese caso
+  // el navegador la niega sin mostrar ningún aviso de permiso.
+  try {
+    final doc = web.document as JSObject;
+    var pp = doc.getProperty<JSAny?>('permissionsPolicy'.toJS);
+    if (pp == null || pp.isUndefinedOrNull) {
+      pp = doc.getProperty<JSAny?>('featurePolicy'.toJS);
+    }
+    if (pp != null && !pp.isUndefinedOrNull) {
+      final allowed = (pp as JSObject)
+          .callMethod<JSBoolean>('allowsFeature'.toJS, 'camera'.toJS)
+          .toDart;
+      if (!allowed) {
+        return const CameraAccessResult(
+          CameraAccess.blockedByPolicy,
+          'Permissions-Policy: camera no permitida por el servidor',
+        );
+      }
+    }
+  } catch (_) {}
 
+  final devices = web.window.navigator.mediaDevices;
   // ¿Hay alguna cámara? (una PC de escritorio sin webcam no muestra aviso)
   try {
     final list = (await devices.enumerateDevices().toDart).toDart;

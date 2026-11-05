@@ -326,7 +326,7 @@ class WebSidebar extends StatelessWidget {
                   border: Border.all(
                       color: brandColor.withValues(alpha: 0.5), width: 1.5),
                 ),
-                child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 40),
+                child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 40, png: user.avatarPng),
               ),
               if (!isCollapsed) ...[
                 const SizedBox(width: 12),

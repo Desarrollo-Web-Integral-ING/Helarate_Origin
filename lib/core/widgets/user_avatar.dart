@@ -1,5 +1,7 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../services/avatar_service.dart';
 
 /// Estilo de avatar disponible para elegir en el perfil.
 class AvatarStyle {
@@ -17,6 +19,11 @@ class UserAvatar extends StatelessWidget {
   final double size;
   final bool circle;
 
+  /// PNG del avatar guardado en el perfil (base64). Si existe, se muestra sin
+  /// tocar internet; si no, se intenta descargar de DiceBear y mientras tanto
+  /// (o si falla) se dibuja un avatar local.
+  final String? png;
+
   const UserAvatar({
     super.key,
     required this.style,
@@ -24,6 +31,7 @@ class UserAvatar extends StatelessWidget {
     required this.name,
     this.size = 40,
     this.circle = true,
+    this.png,
   });
 
   static const List<AvatarStyle> styles = [
@@ -64,16 +72,104 @@ class UserAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = effectiveSeed(seed, name);
     final resolved = resolveStyle(style, s);
-    final painter = _AvatarPainter(resolved, s, name);
-    final child = RepaintBoundary(
-      child: CustomPaint(size: Size.square(size), painter: painter),
+    final local = RepaintBoundary(
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: _AvatarPainter(resolved, s, name),
+      ),
     );
+    final Widget child = AvatarService.isDiceBear(style)
+        ? _DiceBearImage(
+            key: ValueKey('db_${style}_$s'),
+            style: style,
+            seed: s,
+            pngBase64: png,
+            size: size,
+            fallback: local,
+          )
+        : local;
     return SizedBox(
       width: size,
       height: size,
       child: circle
           ? ClipOval(child: child)
           : ClipRRect(borderRadius: BorderRadius.circular(size * 0.22), child: child),
+    );
+  }
+}
+
+/// Muestra un avatar de DiceBear: primero el PNG guardado en el perfil, luego la
+/// caché, y solo si no hay ninguno lo descarga. Mientras llega (o si DiceBear no
+/// responde) deja visible el avatar local de respaldo.
+class _DiceBearImage extends StatefulWidget {
+  final String style;
+  final String seed;
+  final String? pngBase64;
+  final double size;
+  final Widget fallback;
+
+  const _DiceBearImage({
+    super.key,
+    required this.style,
+    required this.seed,
+    required this.pngBase64,
+    required this.size,
+    required this.fallback,
+  });
+
+  @override
+  State<_DiceBearImage> createState() => _DiceBearImageState();
+}
+
+class _DiceBearImageState extends State<_DiceBearImage> {
+  Uint8List? _bytes;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolve();
+  }
+
+  @override
+  void didUpdateWidget(covariant _DiceBearImage old) {
+    super.didUpdateWidget(old);
+    if (old.pngBase64 != widget.pngBase64 ||
+        old.style != widget.style ||
+        old.seed != widget.seed) {
+      _resolve();
+    }
+  }
+
+  void _resolve() {
+    _bytes = AvatarService.fromBase64(widget.pngBase64) ??
+        AvatarService.cached(widget.style, widget.seed);
+    if (_bytes != null) return;
+    final style = widget.style;
+    final seed = widget.seed;
+    AvatarService.fetch(style, seed).then((b) {
+      if (!mounted || b == null) return;
+      if (style == widget.style && seed == widget.seed) {
+        setState(() => _bytes = b);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 250),
+      child: _bytes == null
+          ? KeyedSubtree(key: const ValueKey('fallback'), child: widget.fallback)
+          : Image.memory(
+              _bytes!,
+              key: const ValueKey('png'),
+              width: widget.size,
+              height: widget.size,
+              fit: BoxFit.cover,
+              gaplessPlayback: true,
+              filterQuality: FilterQuality.medium,
+              errorBuilder: (_, __, ___) => widget.fallback,
+            ),
     );
   }
 }

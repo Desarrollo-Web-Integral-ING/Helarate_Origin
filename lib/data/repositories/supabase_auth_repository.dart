@@ -222,28 +222,42 @@ class SupabaseAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<UsuarioPerfil> updateAvatar(String style, String seed) async {
+  Future<UsuarioPerfil> updateAvatar(String style, String seed, {String? pngBase64}) async {
     final user = _client.auth.currentUser;
     if (user == null) {
       throw Exception('No hay una sesión activa.');
     }
 
+    // El PNG se guarda en el perfil para no depender de DiceBear al mostrarlo.
+    // Si la base aún no tiene la columna avatar_png, se guarda solo estilo y semilla.
     try {
       await _client.from('profiles').update({
         'avatar_style': style,
         'avatar_seed': seed,
+        'avatar_png': pngBase64,
       }).eq('id', user.id);
-    } catch (e) {
-      print('Aviso: columnas de avatar en DB no configuradas aún, se actualizará localmente: $e');
+    } catch (_) {
+      try {
+        await _client.from('profiles').update({
+          'avatar_style': style,
+          'avatar_seed': seed,
+        }).eq('id', user.id);
+      } catch (e) {
+        print('Aviso: columnas de avatar en DB no configuradas aún, se actualizará localmente: $e');
+      }
     }
 
     final actualizado = await _getUserProfile(user.id);
     if (actualizado == null) {
       throw Exception('No se pudo confirmar la actualización del avatar.');
     }
-    return actualizado.copyWith(avatarStyle: style, avatarSeed: seed);
+    return actualizado.copyWith(
+      avatarStyle: style,
+      avatarSeed: seed,
+      avatarPng: pngBase64,
+      clearAvatarPng: pngBase64 == null,
+    );
   }
-
   @override
   Future<UsuarioPerfil> updateProfile(String nombre) async {
     final user = _client.auth.currentUser;

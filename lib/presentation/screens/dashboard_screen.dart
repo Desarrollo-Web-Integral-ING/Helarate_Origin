@@ -179,7 +179,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 BoxShadow(color: Colors.black.withValues(alpha: 0.2), blurRadius: 8),
                               ],
                             ),
-                            child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 44),
+                            child: UserAvatar(style: user.avatarStyle, seed: user.avatarSeed ?? '', name: user.nombre, size: 44, png: user.avatarPng),
                           ),
                         );
                       }

@@ -15,6 +15,9 @@ enum CameraAccess {
   /// Página no segura: el navegador solo permite la cámara en HTTPS/localhost.
   insecure,
 
+  /// El servidor del sitio prohíbe la cámara (cabecera Permissions-Policy).
+  blockedByPolicy,
+
   /// Cualquier otro fallo.
   unknown,
 }

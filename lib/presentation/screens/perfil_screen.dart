@@ -1,4 +1,5 @@
 import '../../core/widgets/user_avatar.dart';
+import '../../core/services/avatar_service.dart';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../../core/widgets/app_loader.dart';
@@ -96,9 +97,25 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   Future<void> _cambiarAvatarDiceBear(String style, String seed) async {
+    if (_guardandoAvatar) return;
     setState(() => _guardandoAvatar = true);
     try {
-      final actualizado = await _authRepository.updateAvatar(style, seed);
+      String? png;
+      if (AvatarService.isDiceBear(style)) {
+        // Se descarga UNA vez y se guarda en el perfil: después el avatar se
+        // muestra sin depender de que DiceBear esté disponible.
+        final bytes = await AvatarService.fetch(style, seed);
+        if (bytes == null) {
+          _mostrarSnack(
+            'No se pudo descargar el avatar de DiceBear (sin conexión o bloqueado por la red/una extensión). '
+            'Inténtalo de nuevo o elige un estilo "Sin conexión".',
+            esError: true,
+          );
+          return;
+        }
+        png = AvatarService.toBase64(bytes);
+      }
+      final actualizado = await _authRepository.updateAvatar(style, seed, pngBase64: png);
       if (!mounted) return;
       context.read<AuthBloc>().add(ProfileUpdated(actualizado));
       _mostrarSnack('¡Avatar actualizado!');
@@ -108,7 +125,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
       if (mounted) setState(() => _guardandoAvatar = false);
     }
   }
-
   Future<void> _guardarNegocio(TenantModel tenantActual) async {
     final nombre = _negocioNombreCtrl.text.trim();
     if (nombre.isEmpty) {
@@ -319,7 +335,7 @@ class _PerfilScreenState extends State<PerfilScreen> {
                   ],
                 ),
               ),
-              UserAvatar(style: perfil.avatarStyle, seed: perfil.avatarSeed ?? '', name: perfil.nombre, size: 90),
+              UserAvatar(style: perfil.avatarStyle, seed: perfil.avatarSeed ?? '', name: perfil.nombre, size: 90, png: perfil.avatarPng),
             ],
           ),
           const SizedBox(height: 16),
@@ -414,6 +430,56 @@ class _PerfilScreenState extends State<PerfilScreen> {
   }
 
   Widget _buildDiceBearAvatarSelector(UsuarioPerfil perfil) {
+    final seed = UserAvatar.effectiveSeed(perfil.avatarSeed, perfil.nombre);
+    final brand = context.brand;
+
+    Widget tile({
+      required String id,
+      required String label,
+      required bool selected,
+    }) {
+      return GestureDetector(
+        onTap: _guardandoAvatar ? null : () => _cambiarAvatarDiceBear(id, seed),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: selected ? brand.withValues(alpha: 0.12) : Colors.transparent,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected ? brand : context.borderColor,
+              width: selected ? 2 : 1,
+            ),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              UserAvatar(
+                // La vista previa usa la semilla del usuario para ver cómo le quedaría.
+                style: id,
+                seed: seed,
+                name: perfil.nombre,
+                size: 52,
+                circle: false,
+                png: selected ? perfil.avatarPng : null,
+              ),
+              const SizedBox(height: 5),
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                  color: selected ? brand : context.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return HeroCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,81 +489,71 @@ class _PerfilScreenState extends State<PerfilScreen> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withValues(alpha: 0.12),
+                  color: brand.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: const Icon(Icons.face_retouching_natural_rounded, color: Colors.blue, size: 22),
+                child: Icon(Icons.face_retouching_natural_rounded, color: brand, size: 22),
               ),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
+                    const Text(
                       'Diseño de avatar',
                       style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
                     Text(
-                      'Elige un estilo o genera una variante aleatoria (funciona sin internet)',
+                      '${AvatarService.styles.length} estilos de DiceBear. Se guarda en tu perfil.',
                       style: TextStyle(fontSize: 12, color: context.textMuted),
                     ),
                   ],
                 ),
               ),
-              if (_guardandoAvatar)
-                const SizedBox(width: 18, height: 18, child: const AppSpinner(size: 18)),
+              if (_guardandoAvatar) const AppSpinner(size: 18),
             ],
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 320,
+            child: GridView.builder(
+              itemCount: AvatarService.styles.length,
+              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                maxCrossAxisExtent: 98,
+                mainAxisSpacing: 10,
+                crossAxisSpacing: 10,
+                childAspectRatio: 0.86,
+              ),
+              itemBuilder: (context, i) {
+                final st = AvatarService.styles[i];
+                return tile(
+                  id: st.id,
+                  label: st.label,
+                  selected: perfil.avatarStyle == st.id,
+                );
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
           const Text(
-            'Elige un estilo:',
+            'Sin conexión (se dibujan en la app)',
             style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 110,
+            height: 92,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: UserAvatar.styles.length,
-              separatorBuilder: (_, __) => const SizedBox(width: 12),
-              itemBuilder: (context, idx) {
-                final style = UserAvatar.styles[idx];
-                final avatarSeed = UserAvatar.effectiveSeed(perfil.avatarSeed, perfil.nombre);
-                final isSelected = UserAvatar.resolveStyle(perfil.avatarStyle, avatarSeed) == style.id;
-
-                return GestureDetector(
-                  onTap: () => _cambiarAvatarDiceBear(style.id, avatarSeed),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: 90,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: isSelected ? Colors.blue.withValues(alpha: 0.1) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: isSelected ? Colors.blue : Colors.grey.withValues(alpha: 0.2),
-                        width: isSelected ? 2 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(12),
-                          child: UserAvatar(style: style.id, seed: avatarSeed, name: perfil.nombre, size: 52, circle: false),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          style.label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                            color: isSelected ? Colors.blue : context.textMuted,
-                          ),
-                        ),
-                      ],
-                    ),
+              separatorBuilder: (_, __) => const SizedBox(width: 10),
+              itemBuilder: (context, i) {
+                final st = UserAvatar.styles[i];
+                return SizedBox(
+                  width: 82,
+                  child: tile(
+                    id: st.id,
+                    label: st.label,
+                    selected: perfil.avatarStyle == st.id,
                   ),
                 );
               },
@@ -509,11 +565,13 @@ class _PerfilScreenState extends State<PerfilScreen> {
               Expanded(
                 child: OutlinedButton.icon(
                   icon: const Icon(Icons.shuffle_rounded, size: 18),
-                  label: const Text('Generar Variante Aleatoria'),
-                  onPressed: () {
-                    final randomSeed = 'avatar_${DateTime.now().millisecondsSinceEpoch}';
-                    _cambiarAvatarDiceBear(perfil.avatarStyle, randomSeed);
-                  },
+                  label: const Text('Generar variante aleatoria'),
+                  onPressed: _guardandoAvatar
+                      ? null
+                      : () {
+                          final randomSeed = 'avatar_${DateTime.now().millisecondsSinceEpoch}';
+                          _cambiarAvatarDiceBear(perfil.avatarStyle, randomSeed);
+                        },
                 ),
               ),
             ],
@@ -522,7 +580,6 @@ class _PerfilScreenState extends State<PerfilScreen> {
       ),
     );
   }
-
   Widget _buildNegocioPersonalizacionCard(TenantModel tenant) {
     final colors = [
       {'label': 'Azul Eléctrico', 'hex': '#2563EB', 'color': const Color(0xFF2563EB)},

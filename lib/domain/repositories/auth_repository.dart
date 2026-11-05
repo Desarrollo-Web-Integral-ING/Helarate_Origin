@@ -16,7 +16,7 @@ abstract class AuthRepository {
   Future<UsuarioPerfil> updateProfile(String nombre);
 
   /// Actualizar avatar y estilo de avatar del usuario (DiceBear)
-  Future<UsuarioPerfil> updateAvatar(String style, String seed);
+  Future<UsuarioPerfil> updateAvatar(String style, String seed, {String? pngBase64});
 
   /// Guarda (una sola vez) la aceptación del Aviso de Privacidad del usuario
   /// autenticado y devuelve el perfil actualizado.

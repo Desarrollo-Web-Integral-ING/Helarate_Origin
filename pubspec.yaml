@@ -27,6 +27,7 @@ dependencies:
   mobile_scanner: ^7.5.0
   permission_handler: ^13.0.2
   web: ^1.1.1
+  http: ^1.6.0
 
 dev_dependencies:
   flutter_test:

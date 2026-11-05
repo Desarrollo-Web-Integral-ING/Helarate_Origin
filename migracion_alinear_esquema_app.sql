@@ -57,7 +57,11 @@ ALTER TABLE public.detalle_venta
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS nombre text,
   ADD COLUMN IF NOT EXISTS aceptado_aviso_at timestamptz,
-  ADD COLUMN IF NOT EXISTS aviso_version text;
+  ADD COLUMN IF NOT EXISTS aviso_version text,
+  ADD COLUMN IF NOT EXISTS avatar_style text,
+  ADD COLUMN IF NOT EXISTS avatar_seed text,
+  -- PNG del avatar de DiceBear (base64): se guarda al elegirlo para no depender de DiceBear al mostrarlo
+  ADD COLUMN IF NOT EXISTS avatar_png text;
 
 DO $$
 BEGIN

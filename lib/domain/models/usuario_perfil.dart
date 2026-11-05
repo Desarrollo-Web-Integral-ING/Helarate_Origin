@@ -6,6 +6,8 @@ class UsuarioPerfil {
   final String? tenantId;
   final String avatarStyle; // 'gradiente', 'iniciales', 'geometrico', 'pixel', 'burbujas', 'robot', 'cara'
   final String? avatarSeed;
+  /// PNG del avatar (base64), guardado al elegirlo para no depender de DiceBear.
+  final String? avatarPng;
   final DateTime createdAt;
   final DateTime? aceptadoAvisoAt;
 
@@ -17,6 +19,7 @@ class UsuarioPerfil {
     this.tenantId,
     this.avatarStyle = 'gradiente',
     this.avatarSeed,
+    this.avatarPng,
     required this.createdAt,
     this.aceptadoAvisoAt,
   });
@@ -31,6 +34,8 @@ class UsuarioPerfil {
     String? tenantId,
     String? avatarStyle,
     String? avatarSeed,
+    String? avatarPng,
+    bool clearAvatarPng = false,
     DateTime? aceptadoAvisoAt,
   }) {
     return UsuarioPerfil(
@@ -41,6 +46,7 @@ class UsuarioPerfil {
       tenantId: tenantId ?? this.tenantId,
       avatarStyle: avatarStyle ?? this.avatarStyle,
       avatarSeed: avatarSeed ?? this.avatarSeed,
+      avatarPng: clearAvatarPng ? null : (avatarPng ?? this.avatarPng),
       createdAt: createdAt,
       aceptadoAvisoAt: aceptadoAvisoAt ?? this.aceptadoAvisoAt,
     );
@@ -67,6 +73,7 @@ class UsuarioPerfil {
       tenantId: json['tenant_id'] as String?,
       avatarStyle: json['avatar_style'] as String? ?? 'gradiente',
       avatarSeed: json['avatar_seed'] as String?,
+      avatarPng: json['avatar_png'] as String?,
       createdAt: DateTime.parse(json['created_at'] as String? ?? DateTime.now().toIso8601String()),
       aceptadoAvisoAt: json['aceptado_aviso_at'] != null 
           ? DateTime.parse(json['aceptado_aviso_at'] as String) 
