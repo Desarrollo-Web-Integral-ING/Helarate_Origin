@@ -704,6 +704,11 @@ class _InventarioProduccionScreenState
                       prefixIcon: Icon(Icons.category_outlined),
                     ),
                   ),
+                  FormularioCamposDinamicos(
+                    campos: _camposPersonalizados,
+                    valores: atributosMap,
+                    onValorChanged: (k, v) => atributosMap[k] = v,
+                  ),
                   const SizedBox(height: 20),
                    SizedBox(
                     width: double.infinity,
