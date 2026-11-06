@@ -206,6 +206,7 @@ extension AppColors on BuildContext {
   bool get isDark => Theme.of(this).brightness == Brightness.dark;
   Color get brand => Theme.of(this).colorScheme.primary;
   Color get surfaceColor => Theme.of(this).colorScheme.surface;
+  Color get scaffoldBg => isDark ? AppTheme.darkBackground : AppTheme.background;
   Color get textMain => isDark ? AppTheme.darkTextPrimary : AppTheme.textPrimary;
   Color get textMuted => isDark ? AppTheme.darkTextSecondary : AppTheme.textSecondary;
   Color get borderColor => isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0);

@@ -253,99 +253,141 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
       return const Center(child: Padding(padding: EdgeInsets.all(32), child: AppLoader()));
     }
     if (_tenants.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
-          padding: EdgeInsets.all(32),
-          child: Text('No hay clientes registrados.'),
+          padding: const EdgeInsets.all(32),
+          child: Text('No hay clientes registrados.', style: TextStyle(color: context.textMuted)),
         ),
       );
     }
-    return ListView.separated(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: _tenants.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, idx) {
-        final t = _tenants[idx];
-        final id = t['id']?.toString() ?? '';
-        final nombre = t['nombre']?.toString() ?? 'Sin nombre';
-        final activo = t['activo'] != false;
 
-        return Card(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(14),
-            side: BorderSide(color: context.borderColor),
-          ),
-          child: ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-            leading: CircleAvatar(
-              backgroundColor: activo ? context.brand.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
-              child: Icon(
-                activo ? Icons.business_rounded : Icons.block_rounded,
-                color: activo ? context.brand : Colors.red,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minWidth: constraints.maxWidth),
+            child: DataTable(
+              headingRowColor: WidgetStateProperty.all(
+                context.brand.withValues(alpha: 0.08),
               ),
-            ),
-            title: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    nombre,
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      decoration: activo ? null : TextDecoration.lineThrough,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: activo ? Colors.green.withValues(alpha: 0.15) : Colors.red.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    activo ? 'Activo' : 'Suspendido',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: activo ? Colors.green : Colors.red,
-                    ),
-                  ),
-                ),
+              dataRowColor: WidgetStateProperty.resolveWith((states) {
+                if (states.contains(WidgetState.hovered)) {
+                  return context.brand.withValues(alpha: 0.04);
+                }
+                return context.surfaceColor;
+              }),
+              horizontalMargin: 16,
+              columnSpacing: 20,
+              headingTextStyle: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: context.textMain,
+                fontSize: 13,
+              ),
+              dataTextStyle: TextStyle(
+                color: context.textMain,
+                fontSize: 13,
+              ),
+              columns: const [
+                DataColumn(label: Text('Empresa')),
+                DataColumn(label: Text('Estado')),
+                DataColumn(label: Text('Acciones')),
               ],
-            ),
-            subtitle: Text(
-              'ID: ${id.length > 8 ? id.substring(0, 8) + '...' : id}',
-              style: TextStyle(fontSize: 12, color: context.textMuted),
-            ),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: activo ? 'Suspender/Desactivar' : 'Reactivar',
-                  icon: Icon(
-                    activo ? Icons.pause_circle_outline_rounded : Icons.play_circle_outline_rounded,
-                    color: activo ? Colors.orange : Colors.green,
-                  ),
-                  onPressed: () => _toggleActivoTenant(id, activo, nombre),
-                ),
-                IconButton(
-                  tooltip: 'Eliminar permanentemente',
-                  icon: const Icon(Icons.delete_outline_rounded, color: Colors.red),
-                  onPressed: () => _eliminarTenant(id, nombre),
-                ),
-                const SizedBox(width: 4),
-                FilledButton.tonalIcon(
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  icon: const Icon(Icons.login_rounded, size: 16),
-                  label: const Text('Entrar'),
-                  onPressed: () => _impersonateTenant(id, nombre),
-                ),
-              ],
+              rows: _tenants.map((t) {
+                final id = t['id']?.toString() ?? '';
+                final nombre = t['nombre']?.toString() ?? 'Sin nombre';
+                final activo = t['activo'] != false;
+
+                return DataRow(
+                  cells: [
+                    // Columna Empresa (SOLO NOMBRE)
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircleAvatar(
+                            radius: 14,
+                            backgroundColor: activo
+                                ? context.brand.withValues(alpha: 0.15)
+                                : Colors.red.withValues(alpha: 0.15),
+                            child: Icon(
+                              activo ? Icons.business_rounded : Icons.block_rounded,
+                              size: 16,
+                              color: activo ? context.brand : Colors.red,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 240),
+                            child: Text(
+                              nombre,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                decoration: activo ? null : TextDecoration.lineThrough,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Columna Estado
+                    DataCell(
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: activo
+                              ? Colors.green.withValues(alpha: 0.15)
+                              : Colors.red.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          activo ? 'Activo' : 'Suspendido',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: activo ? Colors.green : Colors.red,
+                          ),
+                        ),
+                      ),
+                    ),
+                    // Columna Acciones
+                    DataCell(
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: activo ? 'Suspender' : 'Reactivar',
+                            icon: Icon(
+                              activo
+                                  ? Icons.pause_circle_outline_rounded
+                                  : Icons.play_circle_outline_rounded,
+                              size: 20,
+                              color: activo ? Colors.orange : Colors.green,
+                            ),
+                            onPressed: () => _toggleActivoTenant(id, activo, nombre),
+                          ),
+                          IconButton(
+                            tooltip: 'Eliminar',
+                            icon: const Icon(Icons.delete_outline_rounded, size: 20, color: Colors.red),
+                            onPressed: () => _eliminarTenant(id, nombre),
+                          ),
+                          const SizedBox(width: 6),
+                          FilledButton.tonalIcon(
+                            style: FilledButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            icon: const Icon(Icons.login_rounded, size: 14),
+                            label: const Text('Entrar', style: TextStyle(fontSize: 12)),
+                            onPressed: () => _impersonateTenant(id, nombre),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }).toList(),
             ),
           ),
         );
@@ -359,7 +401,7 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
     final esMobile = ancho < 768;
 
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: context.scaffoldBg,
       appBar: AppBar(
         title: const Text('Panel de SuperAdmin'),
         backgroundColor: context.brand,
@@ -372,15 +414,16 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
         ],
       ),
       body: esMobile
-          // Vista Móvil: formulario arriba y lista debajo en scroll continuo
-          ? SingleChildScrollView(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _buildForm(context),
-                  const SizedBox(height: 24),
-                  Row(
+          // Vista Móvil: formulario arriba FIJO y la tabla abajo con scroll independiente
+          ? Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: _buildForm(context),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  child: Row(
                     children: [
                       const Icon(Icons.apartment_rounded, size: 20),
                       const SizedBox(width: 8),
@@ -388,12 +431,22 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  _buildTenantList(context),
-                ],
-              ),
+                ),
+                Expanded(
+                  child: Card(
+                    margin: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: context.borderColor),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: _buildTenantList(context),
+                  ),
+                ),
+              ],
             )
-          // Vista Escritorio / Tablet ancha: 2 columnas balanceadas
+          // Vista Escritorio: formulario fijo a la izquierda y tabla con scroll a la derecha
           : Padding(
               padding: const EdgeInsets.all(24),
               child: Row(
@@ -419,7 +472,15 @@ class _SuperAdminScreenState extends State<SuperAdminScreen> {
                         ),
                         const SizedBox(height: 16),
                         Expanded(
-                          child: SingleChildScrollView(child: _buildTenantList(context)),
+                          child: Card(
+                            elevation: 1,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                              side: BorderSide(color: context.borderColor),
+                            ),
+                            clipBehavior: Clip.antiAlias,
+                            child: _buildTenantList(context),
+                          ),
                         ),
                       ],
                     ),

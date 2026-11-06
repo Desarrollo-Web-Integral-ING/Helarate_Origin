@@ -152,7 +152,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       expandedHeight: 140,
       floating: false,
       pinned: true,
-      backgroundColor: AppTheme.background,
+      backgroundColor: context.scaffoldBg,
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
           decoration: BoxDecoration(gradient: primaryGradient),
@@ -264,18 +264,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       },
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.palette_rounded, color: Colors.white),
-                    tooltip: 'Personalizar Marca',
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const PersonalizacionScreen()),
-                      );
-                    },
-                  ),
                   if (MediaQuery.of(context).size.width < 800) ...[
+                    const SizedBox(width: 8),
                     GestureDetector(
                       onTap: () {
                         final auth = context.read<AuthBloc>().state;
@@ -309,13 +299,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               : const Icon(Icons.person, color: Colors.white, size: 20),
                         ),
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.logout_rounded, color: Colors.white),
-                      tooltip: 'Cerrar sesión',
-                      onPressed: () {
-                        context.read<AuthBloc>().add(SignOutRequested());
-                      },
                     ),
                   ],
                 ],

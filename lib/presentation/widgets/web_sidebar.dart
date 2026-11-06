@@ -163,6 +163,13 @@ class WebSidebar extends StatelessWidget {
                   visible: perms.can(Permiso.dashboardVer),
                 );
                 agregar(
+                  index: 7,
+                  activo: Icons.tune_rounded,
+                  inactivo: Icons.tune_outlined,
+                  label: 'Campos',
+                  visible: perms.can(Permiso.personalizacionVer),
+                );
+                agregar(
                   index: 1,
                   activo: Icons.inventory_2_rounded,
                   inactivo: Icons.inventory_2_outlined,
@@ -216,13 +223,6 @@ class WebSidebar extends StatelessWidget {
                   activo: Icons.palette_rounded,
                   inactivo: Icons.palette_outlined,
                   label: 'Personalizar',
-                  visible: perms.can(Permiso.personalizacionVer),
-                );
-                agregar(
-                  index: 7,
-                  activo: Icons.tune_rounded,
-                  inactivo: Icons.tune_outlined,
-                  label: 'Campos',
                   visible: perms.can(Permiso.personalizacionVer),
                 );
 

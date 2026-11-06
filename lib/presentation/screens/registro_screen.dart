@@ -59,7 +59,7 @@ class _RegistroScreenState extends State<RegistroScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.background,
+      backgroundColor: context.scaffoldBg,
       appBar: AppBar(title: const Text('Activar Cuenta')),
       body: Center(
         child: SingleChildScrollView(

@@ -384,11 +384,10 @@ class _MainNavigationState extends State<MainNavigation> {
   List<Widget> _itemsMovil() {
     final items = <Widget>[
       if (_puedeVer(0)) _navItem(0, Icons.home_rounded, Icons.home_outlined, 'Inicio'),
+      if (_puedeVer(7)) _navItem(7, Icons.tune_rounded, Icons.tune_outlined, 'Campos'),
       if (_puedeVer(1)) _navItem(1, Icons.inventory_2_rounded, Icons.inventory_2_outlined, 'Insumos'),
       if (_puedeVer(2)) _navItem(2, Icons.shopping_bag_rounded, Icons.shopping_bag_outlined, 'Productos'),
       if (_puedeVer(3)) _navItem(3, Icons.point_of_sale_rounded, Icons.point_of_sale_outlined, 'Ventas'),
-      if (_puedeVer(4)) _navItem(4, Icons.bar_chart_rounded, Icons.bar_chart_outlined, 'Stats'),
-      if (_puedeVer(8)) _navItem(8, Icons.timer_rounded, Icons.timer_outlined, 'Turnos'),
     ];
     if (_destinosMas().isNotEmpty) items.add(_navMas());
     // FittedBox evita desbordes en pantallas angostas.
@@ -396,10 +395,11 @@ class _MainNavigationState extends State<MainNavigation> {
   }
 
   List<_Destino> _destinosMas() => [
+        if (_puedeVer(4)) const _Destino(4, Icons.bar_chart_rounded, 'Stats'),
+        if (_puedeVer(8)) const _Destino(8, Icons.timer_rounded, 'Turnos'),
         if (_puedeVer(5)) const _Destino(5, Icons.people_alt_rounded, 'Usuarios'),
         if (_puedeVer(9)) const _Destino(9, Icons.admin_panel_settings_rounded, 'Permisos'),
         if (_puedeVer(6)) const _Destino(6, Icons.palette_rounded, 'Personalizar negocio'),
-        if (_puedeVer(7)) const _Destino(7, Icons.tune_rounded, 'Campos personalizados'),
         if (_perms.can(Permiso.equiposConfigurar))
           const _Destino(-1, Icons.print_rounded, 'Equipos de caja'),
       ];
@@ -427,6 +427,15 @@ class _MainNavigationState extends State<MainNavigation> {
                   }
                 },
               ),
+            const Divider(height: 16),
+            ListTile(
+              leading: const Icon(Icons.logout_rounded, color: Colors.red),
+              title: const Text('Cerrar sesión', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              onTap: () {
+                Navigator.pop(ctx);
+                context.read<AuthBloc>().add(SignOutRequested());
+              },
+            ),
             const SizedBox(height: 8),
           ],
         ),
@@ -490,34 +499,18 @@ class _MainNavigationState extends State<MainNavigation> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           gradient: activo ? primaryGradient : null,
           borderRadius: BorderRadius.circular(14),
           border: activo ? Border.all(color: Colors.white.withValues(alpha: 0.15), width: 1) : null,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              icono,
-              color: activo
-                  ? Colors.white
-                  : (isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary),
-              size: 22,
-            ),
-            if (activo) ...[
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
-              ),
-            ],
-          ],
+        child: Icon(
+          icono,
+          color: activo
+              ? Colors.white
+              : (isDark ? const Color(0xFF94A3B8) : AppTheme.textSecondary),
+          size: 22,
         ),
       ),
     );
